@@ -1,0 +1,184 @@
+/**
+ * 核心样式表
+ * 功能：
+ * 1. 定义检查器的高亮框 (#splitview-highlight-box) 和批量选择覆盖层 (.splitview-batch-overlay)。
+ * 2. 定义分屏阅读面板 (#splitview-panel) 的布局、动画与工具栏样式。
+ * 3. 定义提取内容的排版样式 (Markdown/富文本)。
+ */
+#splitview-highlight-box {
+  position: absolute;
+  background: rgba(0, 113, 227, 0.2);
+  border: 1px solid #0071e3;
+  pointer-events: none;
+  z-index: 2147483646;
+  transition: all 0.1s ease;
+  display: none;
+}
+
+
+
+#splitview-highlight-label {
+  position: absolute;
+  top: -24px;
+  left: 0;
+  background: #0071e3;
+  color: white;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-family: Menlo, Monaco, Consolas, monospace;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: auto; /* Allow click */
+  z-index: 2147483647;
+  display: none;
+  cursor: pointer; /* Clickable feedback */
+}
+
+/* Batch Selection Overlays */
+.splitview-batch-overlay {
+  position: absolute;
+  background: rgba(0, 113, 227, 0.1);
+  border: 1px dashed rgba(0, 113, 227, 0.5);
+  pointer-events: none;
+  z-index: 2147483645;
+  transition: all 0.1s ease;
+}
+
+.splitview-batch-overlay.active {
+  background: rgba(0, 113, 227, 0.3);
+  border: 2px solid #0071e3;
+}
+
+#splitview-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 40vw;
+  height: 100vh;
+  background: white;
+  z-index: 2147483647;
+  box-shadow: -4px 0 16px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #e1e1e1;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  transition: transform 0.3s ease;
+  transform: translateX(100%);
+}
+
+#splitview-panel.open {
+  transform: translateX(0);
+}
+
+.sv-header {
+  height: 50px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: #fbfbfb;
+}
+
+.sv-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+}
+
+.sv-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.sv-btn {
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #555;
+  transition: all 0.2s;
+}
+
+.sv-btn:hover {
+  background: #f5f5f5;
+  color: #000;
+}
+
+.sv-btn.active {
+  background: #0071e3;
+  color: white;
+  border-color: #0071e3;
+}
+
+.sv-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #333;
+}
+
+/* Markdown Styles */
+.sv-content.markdown-mode {
+  font-family: 'SF Mono', Monaco, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  font-size: 14px;
+  background: #f9f9f9;
+}
+
+/* Original Content Styles */
+.sv-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 10px 0;
+}
+
+.sv-content blockquote {
+  border-left: 4px solid #0071e3;
+  margin: 0;
+  padding-left: 16px;
+  color: #666;
+}
+
+.sv-content pre {
+  background: #f5f5f7;
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+#splitview-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #1d1d1f;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 2147483647;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transform: translateX(100px);
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+#splitview-notification.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+@media print {
+  #splitview-panel,
+  #splitview-highlight-box,
+  #splitview-highlight-label,
+  #splitview-notification {
+    display: none !important;
+  }
+}

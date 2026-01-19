@@ -1,0 +1,15 @@
+{
+  "host": "twitter.com",
+  "expandSelectors": [
+    "button[data-testid='tweet-text-show-more-link']"
+  ],
+  "expandText": ["显示更多", "Show more", "Read more"],
+  "extractRootSelectors": [],
+  "removeSelectors": [],
+  "collapseStyleFix": {
+    "maxHeight": "none",
+    "overflow": "visible",
+    "lineClamp": "unset",
+    "-webkit-line-clamp": "unset"
+  }
+}
