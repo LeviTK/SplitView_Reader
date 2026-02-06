@@ -13,6 +13,12 @@ All notable changes to this project will be documented in this file.
 - 面板内新增“设置”入口，可快速切换当前站点白名单和宽度覆盖并即时生效。
 - 新增扩展设置页：`options.html`、`options.css`、`options.js`，支持完整配置管理。
 - `manifest.json` 新增 `options_page` 并升级版本到 `1.1.0`。
+- 分屏宽度由固定值改为动态配置：支持站点命中后自动应用有效宽度并实时调整页面 `padding-right`。
+- 增加配置存储结构 `splitViewSettings`（`chrome.storage.local`），支持默认值回填与配置归一化。
+- 分屏参数化（`content.js` + `content.css`）：新增配置模型 `splitViewSettings`、白名单站点匹配（含子域）、全局默认宽度 + 站点独立宽度覆盖；非白名单站点保持默认 40%；分屏宽度改为动态 CSS 变量（不再固定 `40vw`）。
+- 面板内设置入口（`content.js`）：新增“设置”按钮；支持当前站点加入/移除白名单；支持当前站点独立宽度覆盖；支持实时保存并即时生效。
+- 新增 Options 页面：`options.html`、`options.css`、`options.js`；支持全局宽度设置、白名单管理、站点覆盖管理、重置默认。
+- 配置与文档更新：`manifest.json` 升级到 `1.1.0` 并新增 `options_page`；`README.md` 补充分屏参数化与设置页说明；`CHANGELOG.md` 新增 `v1.1.0` 版本记录。
 
 ## [v1.0.9] - 2026-02-06
 
