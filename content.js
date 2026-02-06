@@ -484,25 +484,41 @@ function renderContent() {
 
 function copyContent() {
   const btn = document.getElementById('sv-copy');
+  const container = document.getElementById('sv-content-body');
+  if (!btn || !container) {
+    showNotification('无可复制内容');
+    return;
+  }
   
   const showSuccess = () => {
-    const original = btn.textContent; // Store potentially localized text if changed later, but for now '复制'
+    const original = btn.textContent;
     btn.textContent = '已复制';
     setTimeout(() => {
-        // Restore original text (checking if button still exists)
-        if (document.getElementById('sv-copy')) {
-            document.getElementById('sv-copy').textContent = '复制';
+        const latestBtn = document.getElementById('sv-copy');
+        if (latestBtn) {
+            latestBtn.textContent = original;
         }
     }, 1500);
   };
 
+  const showFailure = (err) => {
+    console.error('Copy failed:', err);
+    showNotification('复制失败，请检查剪贴板权限');
+    const original = btn.textContent;
+    btn.textContent = '失败';
+    setTimeout(() => {
+      const latestBtn = document.getElementById('sv-copy');
+      if (latestBtn) {
+        latestBtn.textContent = original;
+      }
+    }, 1500);
+  };
+
   if (currentMode === 'markdown') {
-    const container = document.getElementById('sv-content-body');
     const text = container.textContent;
-    navigator.clipboard.writeText(text).then(showSuccess);
+    navigator.clipboard.writeText(text).then(showSuccess).catch(showFailure);
   } else {
     // Rich Text Mode: Copy from the panel DOM directly to get user selection or full content
-    const container = document.getElementById('sv-content-body');
     const selection = window.getSelection();
     let contentToCopy = null;
 
@@ -566,17 +582,21 @@ function copyContent() {
       navigator.clipboard.write(data).then(showSuccess).catch(err => {
         console.error('Clipboard write failed:', err);
         // Fallback
-        navigator.clipboard.writeText(text).then(showSuccess);
+        navigator.clipboard.writeText(text).then(showSuccess).catch(showFailure);
       });
     } catch (e) {
       console.error('ClipboardItem not supported or failed:', e);
-      navigator.clipboard.writeText(text).then(showSuccess);
+      navigator.clipboard.writeText(text).then(showSuccess).catch(showFailure);
     }
   }
 }
 
 function copyHtmlSource() {
   const container = document.getElementById('sv-content-body');
+  if (!container) {
+    showNotification('无可复制内容');
+    return;
+  }
   // Copy full innerHTML source as plain text, with FULL computed inline styles
   
   // Clone the container to manipulate
@@ -641,6 +661,10 @@ function copyHtmlSource() {
   // Let's just output the clone's HTML.
   
   const btn = document.getElementById('sv-copy-source');
+  if (!btn) {
+    showNotification('复制失败：按钮不存在');
+    return;
+  }
   const original = btn.textContent;
   
   navigator.clipboard.writeText(html).then(() => {
@@ -652,12 +676,19 @@ function copyHtmlSource() {
     }, 1500);
   }).catch(err => {
     console.error('Copy source failed:', err);
+    showNotification('复制源码失败，请检查剪贴板权限');
     btn.textContent = '失败';
     setTimeout(() => btn.textContent = original, 1500);
   });
 }
 
 function exportToPDF() {
+  const container = document.getElementById('sv-content-body');
+  if (!container) {
+    showNotification('无可导出内容');
+    return;
+  }
+
   // Use a hidden iframe to print only the content
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
@@ -668,7 +699,13 @@ function exportToPDF() {
   iframe.style.border = '0';
   document.body.appendChild(iframe);
 
-  const doc = iframe.contentWindow.document;
+  const iframeWindow = iframe.contentWindow;
+  if (!iframeWindow) {
+    showNotification('PDF 导出失败：无法创建打印上下文');
+    document.body.removeChild(iframe);
+    return;
+  }
+  const doc = iframeWindow.document;
   
   // Get CSS from content.css (or inline minimal styles)
   // We'll add base styles to ensure it looks good
@@ -686,11 +723,6 @@ function exportToPDF() {
     a { color: #0071e3; text-decoration: none; }
   `;
 
-  // Get Content (Rich or Markdown depending on view, usually Rich is better for PDF)
-  // But user selected option B: "Export Right Panel Content"
-  // So we take whatever is in the container.
-  const container = document.getElementById('sv-content-body');
-  
   doc.open();
   doc.write(`
     <html>
@@ -705,16 +737,31 @@ function exportToPDF() {
   `);
   doc.close();
 
-  // Print after image loading (simple timeout or load event)
-  iframe.contentWindow.focus();
+  const cleanup = () => {
+    if (iframe.parentNode) {
+      iframe.parentNode.removeChild(iframe);
+    }
+  };
+
+  const onAfterPrint = () => {
+    iframeWindow.removeEventListener('afterprint', onAfterPrint);
+    cleanup();
+  };
+  iframeWindow.addEventListener('afterprint', onAfterPrint);
+
   setTimeout(() => {
-      iframe.contentWindow.print();
-      // Cleanup after print dialog closes (or sufficiently long timeout)
-      // Note: We can't strictly know when print closes, but removing iframe immediately stops print on some browsers.
-      // So we wait a bit or listen for focus back.
-      // For simplicity in extension: leave it or remove after delay.
-      setTimeout(() => document.body.removeChild(iframe), 1000); 
+    try {
+      iframeWindow.focus();
+      iframeWindow.print();
+    } catch (err) {
+      console.error('PDF print failed:', err);
+      showNotification('PDF 导出失败，请稍后重试');
+      cleanup();
+    }
   }, 500);
+
+  // Fallback cleanup to avoid orphan iframe.
+  setTimeout(cleanup, 15000);
 }
 
 // Reuse the HTML to Markdown logic

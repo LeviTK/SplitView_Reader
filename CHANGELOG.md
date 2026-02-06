@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.0.4] - 2026-02-06
+
+- 增强复制流程错误处理，补齐 Markdown/Rich Text 分支失败兜底与提示。
+- `copyHtmlSource` 增加空内容与失败提示保护。
+- `exportToPDF` 增加上下文校验、`afterprint` 清理与超时清理兜底。
+
 ## [v1.0.3] - 2026-02-06
 
 - 收紧 `expandContent` 文本匹配点击范围。
