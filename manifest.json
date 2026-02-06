@@ -8,9 +8,6 @@
     "storage",
     "scripting"
   ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -24,7 +21,8 @@
         "site_rules/*.json"
       ],
       "matches": [
-        "<all_urls>"
+        "http://*/*",
+        "https://*/*"
       ]
     }
   ],

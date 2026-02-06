@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.0.5] - 2026-02-06
+
+- 移除 `manifest.json` 中不必要的 `host_permissions`。
+- 将 `web_accessible_resources.matches` 从 `<all_urls>` 收敛为 `http://*/*` 与 `https://*/*`。
+
 ## [v1.0.4] - 2026-02-06
 
 - 增强复制流程错误处理，补齐 Markdown/Rich Text 分支失败兜底与提示。

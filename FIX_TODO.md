@@ -4,6 +4,6 @@
 - [x] 2. 修复标签点击目标漂移（`content.js`）
 - [x] 3. 限制 `expandContent` 危险点击（`content.js`）
 - [x] 4. 增强复制/PDF 导出异常兜底（`content.js`）
-- [ ] 5. 收敛权限范围（`manifest.json`）
+- [x] 5. 收敛权限范围（`manifest.json`）
 - [ ] 6. 消息协议常量化 + README 与实现对齐（`background.js`、`content.js`、`README.md`）
 - [ ] 7. 完成最终回归检查并收尾
