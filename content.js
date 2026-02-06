@@ -379,6 +379,17 @@ function highlightElement(element) {
   
   highlightLabel.style.display = 'block';
   highlightLabel.textContent = `${tagName}${id}${className}`;
+
+  const visibleTop = Math.max(rect.top, 0);
+  const labelOffset = visibleTop - rect.top;
+
+  if (rect.top < 24) {
+    highlightLabel.style.top = (labelOffset + 4) + 'px';
+    highlightLabel.style.bottom = 'auto';
+  } else {
+    highlightLabel.style.top = '-24px';
+    highlightLabel.style.bottom = 'auto';
+  }
 }
 
 // ---------------------------------------------------------
@@ -521,6 +532,169 @@ let currentLayoutProfile = {
   matchedDomain: null,
   isWhitelisted: false
 };
+
+const svFixedSqueezer = (function createFixedSqueezer() {
+  const SV_IDS = [
+    'splitview-panel',
+    'splitview-highlight-box',
+    'splitview-highlight-label',
+    'splitview-notification'
+  ];
+
+  function isSplitViewEl(el) {
+    if (!(el instanceof Element)) return false;
+    if (SV_IDS.includes(el.id)) return true;
+    if (el.closest('#splitview-panel')) return true;
+    return false;
+  }
+
+  const adjusted = new Set();
+  const originals = new WeakMap();
+  let offsetPx = 0;
+  let enabled = false;
+  let mo = null;
+  let onResize = null;
+  const pending = new Set();
+  let rafScheduled = false;
+
+  function storeOriginal(el, props) {
+    if (originals.has(el)) return;
+    const saved = {};
+    for (const p of props) saved[p] = el.style[p] || '';
+    originals.set(el, saved);
+  }
+
+  function availableRight() {
+    return window.innerWidth - offsetPx;
+  }
+
+  function adjustFixed(el) {
+    if (!(el instanceof Element)) return;
+    if (isSplitViewEl(el)) return;
+
+    const cs = window.getComputedStyle(el);
+    if (cs.position !== 'fixed') return;
+    if (cs.display === 'none') return;
+
+    const rect = el.getBoundingClientRect();
+    if (rect.right <= availableRight() + 1) return;
+
+    storeOriginal(el, ['right', 'maxWidth', 'boxSizing']);
+    el.style.boxSizing = 'border-box';
+
+    const isFullWidth = rect.left <= 1 && rect.width >= window.innerWidth * 0.8;
+
+    if (isFullWidth) {
+      el.style.right = `${offsetPx}px`;
+    } else {
+      const currentRight = parseFloat(cs.right);
+      if (isFinite(currentRight) && cs.right !== 'auto') {
+        el.style.right = `${currentRight + offsetPx}px`;
+      } else {
+        el.style.maxWidth = `${Math.max(0, availableRight() - rect.left)}px`;
+      }
+    }
+
+    el.dataset.svFixedManaged = '1';
+    adjusted.add(el);
+  }
+
+  function scanAll(root) {
+    const els = (root || document.documentElement).querySelectorAll('*');
+    for (const el of els) adjustFixed(el);
+  }
+
+  function restoreAll() {
+    for (const el of adjusted) {
+      if (!(el instanceof Element)) continue;
+      const saved = originals.get(el);
+      if (saved) {
+        for (const [prop, val] of Object.entries(saved)) el.style[prop] = val;
+      }
+      delete el.dataset.svFixedManaged;
+    }
+    adjusted.clear();
+  }
+
+  function flushPending() {
+    rafScheduled = false;
+    for (const node of pending) {
+      if (node instanceof Element) {
+        adjustFixed(node);
+        const children = node.querySelectorAll ? node.querySelectorAll('*') : [];
+        for (const c of children) adjustFixed(c);
+      }
+    }
+    pending.clear();
+  }
+
+  function schedulePending() {
+    if (rafScheduled) return;
+    rafScheduled = true;
+    requestAnimationFrame(flushPending);
+  }
+
+  function startObserver() {
+    if (mo) return;
+    mo = new MutationObserver(mutations => {
+      for (const m of mutations) {
+        for (const n of m.addedNodes) {
+          if (n.nodeType === 1) pending.add(n);
+        }
+        if (m.type === 'attributes' && m.target && m.target.nodeType === 1) {
+          pending.add(m.target);
+        }
+      }
+      if (pending.size > 0) schedulePending();
+    });
+    mo.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class']
+    });
+  }
+
+  function stopObserver() {
+    if (mo) { mo.disconnect(); mo = null; }
+    pending.clear();
+    rafScheduled = false;
+  }
+
+  function getPanelOffsetPx(widthPct) {
+    const panel = document.getElementById('splitview-panel');
+    if (panel) {
+      const rect = panel.getBoundingClientRect();
+      if (rect.width > 0) return Math.round(rect.width);
+    }
+    return Math.round(window.innerWidth * (widthPct / 100));
+  }
+
+  return {
+    enable(widthPct) {
+      if (enabled) restoreAll();
+      enabled = true;
+      offsetPx = getPanelOffsetPx(widthPct);
+      scanAll();
+      startObserver();
+      if (!onResize) {
+        onResize = () => {
+          if (!enabled) return;
+          offsetPx = getPanelOffsetPx(widthPct);
+          restoreAll();
+          scanAll();
+        };
+        window.addEventListener('resize', onResize, { passive: true });
+      }
+    },
+    disable() {
+      enabled = false;
+      stopObserver();
+      if (onResize) { window.removeEventListener('resize', onResize); onResize = null; }
+      restoreAll();
+    }
+  };
+})();
 
 function getSettingsElements() {
   if (!splitPanel) return null;
@@ -678,6 +852,7 @@ function createSplitPanel() {
   splitPanel.id = 'splitview-panel';
   
   splitPanel.innerHTML = `
+    <div class="sv-resize-handle" id="sv-resize-handle"></div>
     <div class="sv-header">
       <div class="sv-title">提取内容</div>
       <div class="sv-controls">
@@ -738,29 +913,190 @@ function createSplitPanel() {
       renderContent();
     });
   });
+
+  initResizeHandle();
+}
+
+function initResizeHandle() {
+  const handle = splitPanel.querySelector('#sv-resize-handle');
+  if (!handle) return;
+
+  let dragging = false;
+  let startX = 0;
+  let startWidthPx = 0;
+
+  const minPct = splitSettingsCache.global.minWidthPct || 20;
+  const maxPct = splitSettingsCache.global.maxWidthPct || 60;
+
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    dragging = true;
+    startX = e.clientX;
+    startWidthPx = splitPanel.getBoundingClientRect().width;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    handle.classList.add('active');
+    splitPanel.classList.add('sv-dragging');
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const delta = startX - e.clientX;
+    const newWidthPx = Math.max(0, startWidthPx + delta);
+    const newPct = Math.round((newWidthPx / window.innerWidth) * 100);
+    const clamped = clampWidth(newPct, minPct, maxPct);
+
+    applyPanelWidth(clamped);
+    enableSplitLayout(clamped);
+    currentLayoutProfile.widthPct = clamped;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    handle.classList.remove('active');
+    splitPanel.classList.remove('sv-dragging');
+  });
+}
+
+let svLayoutStyleEl = null;
+let originalRootStyles = new Map();
+
+function ensureLayoutStyle() {
+  if (svLayoutStyleEl && svLayoutStyleEl.parentNode) return svLayoutStyleEl;
+  svLayoutStyleEl = document.createElement('style');
+  svLayoutStyleEl.id = 'splitview-layout-style';
+  svLayoutStyleEl.textContent = '';
+  (document.head || document.documentElement).appendChild(svLayoutStyleEl);
+  return svLayoutStyleEl;
+}
+
+const SV_SKIP_IDS = new Set([
+  'splitview-panel',
+  'splitview-highlight-box',
+  'splitview-highlight-label',
+  'splitview-notification',
+  'splitview-layout-style'
+]);
+
+function isSplitViewNode(el) {
+  return el && el.id && SV_SKIP_IDS.has(el.id);
+}
+
+function squeezePageRoots(widthPct) {
+  const contentWidth = (100 - widthPct) + 'vw';
+
+  for (const child of document.body.children) {
+    if (!(child instanceof HTMLElement)) continue;
+    if (isSplitViewNode(child)) continue;
+
+    const cs = getComputedStyle(child);
+    const rect = child.getBoundingClientRect();
+    const needsSqueezing =
+      rect.width >= window.innerWidth * 0.9 ||
+      cs.position === 'fixed' ||
+      cs.position === 'absolute';
+
+    if (!needsSqueezing) continue;
+
+    if (!originalRootStyles.has(child)) {
+      originalRootStyles.set(child, {
+        width: child.style.width,
+        maxWidth: child.style.maxWidth,
+        minWidth: child.style.minWidth,
+        boxSizing: child.style.boxSizing,
+        overflowX: child.style.overflowX
+      });
+    }
+
+    child.style.setProperty('max-width', contentWidth, 'important');
+    child.style.setProperty('min-width', '0', 'important');
+    child.style.setProperty('box-sizing', 'border-box', 'important');
+    child.style.setProperty('overflow-x', 'hidden', 'important');
+
+    if (cs.position === 'fixed') {
+      child.style.setProperty('width', contentWidth, 'important');
+    }
+  }
+}
+
+function restorePageRoots() {
+  for (const [el, saved] of originalRootStyles) {
+    if (!(el instanceof HTMLElement)) continue;
+    for (const [prop, val] of Object.entries(saved)) {
+      el.style[prop] = val;
+    }
+  }
+  originalRootStyles.clear();
+}
+
+let hiddenOnSplitEls = new Map();
+
+function applyHideOnSplit() {
+  if (!currentSiteRule || !currentSiteRule.hideOnSplit) return;
+  for (const selector of currentSiteRule.hideOnSplit) {
+    try {
+      document.querySelectorAll(selector).forEach(el => {
+        if (hiddenOnSplitEls.has(el)) return;
+        hiddenOnSplitEls.set(el, el.style.display);
+        el.style.setProperty('display', 'none', 'important');
+      });
+    } catch (e) { /* invalid selector */ }
+  }
+}
+
+function restoreHideOnSplit() {
+  for (const [el, originalDisplay] of hiddenOnSplitEls) {
+    if (!(el instanceof HTMLElement)) continue;
+    el.style.display = originalDisplay;
+  }
+  hiddenOnSplitEls.clear();
 }
 
 function enableSplitLayout(widthPct) {
-  // Save original styles if not already saved
   if (!document.body.classList.contains('sv-split-active')) {
     originalBodyStyle = document.body.style.cssText;
     originalHtmlStyle = document.documentElement.style.cssText;
-    
     document.body.classList.add('sv-split-active');
-    
-    // Resize Page - using padding instead of width to be less intrusive
-    document.documentElement.style.overflowX = 'hidden';
-    document.body.style.boxSizing = 'border-box'; // Ensure padding is calculated correctly
   }
-  document.body.style.paddingRight = `${widthPct}vw`;
+
+  const contentWidth = (100 - widthPct) + 'vw';
+  const styleEl = ensureLayoutStyle();
+  styleEl.textContent = `
+    html {
+      overflow-x: hidden !important;
+      width: ${contentWidth} !important;
+      max-width: ${contentWidth} !important;
+    }
+    body.sv-split-active {
+      overflow-x: hidden !important;
+      box-sizing: border-box !important;
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+  `;
+
+  squeezePageRoots(widthPct);
+  applyHideOnSplit();
+  svFixedSqueezer.enable(widthPct);
 }
 
 function closeSplitView() {
+  svFixedSqueezer.disable();
+  restoreHideOnSplit();
+  restorePageRoots();
+
+  if (svLayoutStyleEl && svLayoutStyleEl.parentNode) {
+    svLayoutStyleEl.parentNode.removeChild(svLayoutStyleEl);
+    svLayoutStyleEl = null;
+  }
+
   if (splitPanel) {
     splitPanel.classList.remove('open');
   }
-  
-  // Restore Layout
+
   document.body.classList.remove('sv-split-active');
   document.body.style.cssText = originalBodyStyle;
   document.documentElement.style.cssText = originalHtmlStyle;

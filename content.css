@@ -51,6 +51,36 @@
   transform: translateX(100%);
 }
 
+.sv-resize-handle {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 1;
+}
+
+.sv-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 3px;
+  width: 2px;
+  height: 100%;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.sv-resize-handle:hover::after,
+.sv-resize-handle.active::after {
+  background: #0071e3;
+}
+
+#splitview-panel.sv-dragging {
+  transition: none !important;
+}
+
 #splitview-panel.open {
   transform: translateX(0);
 }

@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.2.0] - 2026-02-06
+
+### 新增
+- 分屏布局完整挤压：新增三层挤压策略（html 宽度约束 + body 子容器限制 + fixed 元素调整），解决 x.com 等 SPA 站点页面内容未被挤压的问题。
+- Fixed 元素智能处理（`svFixedSqueezer`）：自动扫描并调整 `position: fixed` 元素的宽度/偏移，使用 MutationObserver 处理动态新增的 fixed 元素，窗口 resize 时自动重算。
+- 拖动分割线调整面板宽度：面板左侧新增可拖动的 resize handle，支持实时拖拽调整分屏比例（范围 20%~60%），拖动时禁用面板过渡动画以保持流畅。
+- 站点规则新增 `hideOnSplit` 字段：支持在分屏模式下按 CSS 选择器隐藏指定元素，关闭面板后自动恢复。
+
+### 修复
+- 高亮标签顶部溢出：当元素贴近视口顶部时，标签自动移入高亮框可见区域内侧，避免超出页面不可见。
+
+### 调整
+- `manifest.json` 版本升级到 `1.2.0`。
+
 ## [v1.1.1] - 2026-02-06
 
 - 修复选中后右侧不显示问题：提取链路增加异常兜底与显示前有效内容判定。

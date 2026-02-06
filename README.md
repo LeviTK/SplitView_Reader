@@ -4,7 +4,8 @@ Arc 浏览器风格的页面内分屏阅读 Chrome 插件，支持点击提取�
 
 ## 🌟 核心特性
 
-- **页面内分屏**：不依赖独立窗口或侧边栏，提取后在右侧展开阅读面板；支持按白名单站点启用参数化分屏宽度。
+- **页面内分屏**：不依赖独立窗口或侧边栏，提取后在右侧展开阅读面板；支持按白名单站点启用参数化分屏宽度。左侧页面内容完整挤压（含 `position: fixed` 导航栏等），兼容 x.com 等复杂 SPA 站点。
+- **拖动调整宽度**：面板左侧提供可拖动分割线，实时调整分屏比例（20%~60%）。
 - **元素检查与提取**：
   - **悬停预览**：高亮鼠标当前元素并显示标签。
   - **单项提取**：点击当前元素立即提取并显示到右侧面板。
@@ -92,12 +93,15 @@ Arc 浏览器风格的页面内分屏阅读 Chrome 插件，支持点击提取�
   "host": "x.com",
   "expandSelectors": ["button[data-testid='tweet-text-show-more-link']"],
   "expandText": ["显示更多", "Show more"],
+  "hideOnSplit": ["[data-testid='sidebarColumn']"],
   "collapseStyleFix": {
     "maxHeight": "none",
     "lineClamp": "unset"
   }
 }
 ```
+
+- `hideOnSplit`：分屏打开时隐藏匹配的元素，关闭后自动恢复。
 
 ## License
 
