@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.0.2] - 2026-02-06
+
+- 修复标签点击目标漂移：新增 `lastRealHoveredElement`。
+- `handleMouseMove` 排除 `#splitview-highlight-label` 参与悬停目标计算。
+- 点击标签时优先使用最后真实悬停元素进行同级提取。
+
 ## [v1.0.1] - 2026-02-06
 
 - 新增 `.gitignore` 并忽略 `.DS_Store`。

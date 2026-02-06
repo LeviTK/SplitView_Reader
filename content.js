@@ -11,6 +11,7 @@ let isInspecting = false;
 let highlightBox = null;
 let highlightLabel = null;
 let currentHoveredElement = null;
+let lastRealHoveredElement = null;
 
 // ---------------------------------------------------------
 // Batch Selection State (Removed)
@@ -63,10 +64,17 @@ function handleMouseMove(e) {
   // 获取鼠标下的元素
   const element = document.elementFromPoint(e.clientX, e.clientY);
   
-  if (!element || element === highlightBox || element.closest('#splitview-panel')) return;
+  if (
+    !element ||
+    element === highlightBox ||
+    element === highlightLabel ||
+    element.id === 'splitview-highlight-label' ||
+    element.closest('#splitview-panel')
+  ) return;
   
   if (element !== currentHoveredElement) {
     currentHoveredElement = element;
+    lastRealHoveredElement = element;
     highlightElement(element);
     // identifyBatchCandidates(element); REMOVED
   }
@@ -83,7 +91,7 @@ function handleClick(e) {
   if (e.target === highlightLabel) {
       e.preventDefault();
       e.stopPropagation();
-      handleLabelClick(currentHoveredElement);
+      handleLabelClick(lastRealHoveredElement || currentHoveredElement);
       return;
   }
 
