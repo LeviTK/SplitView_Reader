@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.0.8] - 2026-02-06
+
+- 针对受保护页面（如 `chrome://`）注入失败新增错误识别与降级处理。
+- `insertCSS` 与 `executeScript` 遇到受保护 URL 错误时改为 `warn + return`，避免噪音错误日志。
+
 ## [v1.0.7] - 2026-02-06
 
 - 完成本轮修复收尾，更新 `FIX_TODO.md` 全部任务状态。

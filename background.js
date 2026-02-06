@@ -6,6 +6,12 @@
  * 3. 发送 'startSelection' 消息激活页面内的检查器。
  */
 const ACTION_START_SELECTION = 'startSelection';
+const SUPPORTED_PROTOCOLS = ['http:', 'https:'];
+const RESTRICTED_URL_ERROR_FRAGMENT = 'Cannot access a chrome:// URL';
+
+function isRestrictedUrlInjectionError(err) {
+  return Boolean(err && err.message && err.message.includes(RESTRICTED_URL_ERROR_FRAGMENT));
+}
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('SplitView Reader installed');
@@ -13,7 +19,20 @@ chrome.runtime.onInstalled.addListener(() => {
 
 // 点击插件图标，启动框选模式
 chrome.action.onClicked.addListener(async (tab) => {
-  if (!tab.id) return;
+  if (!tab.id || !tab.url) return;
+
+  let protocol = '';
+  try {
+    protocol = new URL(tab.url).protocol;
+  } catch (err) {
+    console.warn('SplitView: invalid tab URL, skip injection:', tab.url, err);
+    return;
+  }
+
+  if (!SUPPORTED_PROTOCOLS.includes(protocol)) {
+    console.warn('SplitView: unsupported page for injection:', tab.url);
+    return;
+  }
 
   // 注入 CSS
   try {
@@ -22,6 +41,10 @@ chrome.action.onClicked.addListener(async (tab) => {
       files: ['content.css']
     });
   } catch (err) {
+    if (isRestrictedUrlInjectionError(err)) {
+      console.warn('SplitView: restricted page, skip CSS injection.');
+      return;
+    }
     console.error('Failed to inject CSS:', err);
   }
 
@@ -47,6 +70,10 @@ chrome.action.onClicked.addListener(async (tab) => {
         files: ['lib/markdown-it.min.js', 'content.js']
       });
     } catch (err) {
+      if (isRestrictedUrlInjectionError(err)) {
+        console.warn('SplitView: restricted page, skip JS injection.');
+        return;
+      }
       console.error('Failed to inject JS:', err);
     }
   }
@@ -59,6 +86,4 @@ chrome.action.onClicked.addListener(async (tab) => {
     console.log('Message sending failed (script might be initializing):', err);
   }
 });
-
-
 
