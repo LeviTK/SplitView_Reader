@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.0.7] - 2026-02-06
+
+- 完成本轮修复收尾，更新 `FIX_TODO.md` 全部任务状态。
+- 执行脚本语法检查与仓库状态检查，确认当前修复链路可交付。
+
 ## [v1.0.6] - 2026-02-06
 
 - 消息协议常量化：`background.js` 与 `content.js` 使用统一 `ACTION_START_SELECTION` 常量。
