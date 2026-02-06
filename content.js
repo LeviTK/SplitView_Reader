@@ -13,6 +13,164 @@ let highlightLabel = null;
 let currentHoveredElement = null;
 let lastRealHoveredElement = null;
 const ACTION_START_SELECTION = 'startSelection';
+const STORAGE_KEY_SPLIT_SETTINGS = 'splitViewSettings';
+const DEFAULT_FALLBACK_WIDTH_PCT = 40;
+const DEFAULT_SPLIT_SETTINGS = {
+  version: 1,
+  global: {
+    defaultWidthPct: 40,
+    minWidthPct: 20,
+    maxWidthPct: 60,
+    stepPct: 1
+  },
+  whitelist: {
+    enabled: true,
+    domains: []
+  },
+  siteOverrides: {}
+};
+
+function deepClone(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+function clampWidth(value, min, max) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return min;
+  return Math.max(min, Math.min(max, Math.round(num)));
+}
+
+function normalizeDomain(input) {
+  if (!input) return '';
+  let domain = String(input).trim().toLowerCase();
+  domain = domain.replace(/^https?:\/\//, '');
+  domain = domain.split('/')[0];
+  domain = domain.replace(/:\d+$/, '');
+  domain = domain.replace(/^\.+|\.+$/g, '');
+  domain = domain.replace(/^www\./, '');
+  return domain;
+}
+
+function getDomainKey(hostname) {
+  const normalized = normalizeDomain(hostname);
+  const parts = normalized.split('.').filter(Boolean);
+  if (parts.length > 2) {
+    return parts.slice(-2).join('.');
+  }
+  return normalized;
+}
+
+function matchDomainRule(hostname, domains) {
+  const normalizedHost = normalizeDomain(hostname);
+  for (const rawDomain of domains || []) {
+    const domain = normalizeDomain(rawDomain);
+    if (!domain) continue;
+    if (normalizedHost === domain || normalizedHost.endsWith(`.${domain}`)) {
+      return domain;
+    }
+  }
+  return null;
+}
+
+function normalizeSplitSettings(raw) {
+  const merged = deepClone(DEFAULT_SPLIT_SETTINGS);
+  if (!raw || typeof raw !== 'object') {
+    return merged;
+  }
+
+  if (raw.version) merged.version = raw.version;
+  if (raw.global && typeof raw.global === 'object') {
+    merged.global.defaultWidthPct = clampWidth(
+      raw.global.defaultWidthPct,
+      merged.global.minWidthPct,
+      merged.global.maxWidthPct
+    );
+    merged.global.minWidthPct = clampWidth(raw.global.minWidthPct, 10, 90);
+    merged.global.maxWidthPct = clampWidth(raw.global.maxWidthPct, merged.global.minWidthPct, 90);
+    merged.global.stepPct = clampWidth(raw.global.stepPct, 1, 10);
+  }
+
+  if (raw.whitelist && typeof raw.whitelist === 'object') {
+    merged.whitelist.enabled = raw.whitelist.enabled !== false;
+    if (Array.isArray(raw.whitelist.domains)) {
+      merged.whitelist.domains = Array.from(
+        new Set(raw.whitelist.domains.map(normalizeDomain).filter(Boolean))
+      );
+    }
+  }
+
+  if (raw.siteOverrides && typeof raw.siteOverrides === 'object') {
+    const overrides = {};
+    for (const [domainRaw, config] of Object.entries(raw.siteOverrides)) {
+      const domain = normalizeDomain(domainRaw);
+      if (!domain || !config || typeof config !== 'object') continue;
+      overrides[domain] = {
+        widthPct: clampWidth(
+          config.widthPct,
+          merged.global.minWidthPct,
+          merged.global.maxWidthPct
+        )
+      };
+    }
+    merged.siteOverrides = overrides;
+  }
+
+  return merged;
+}
+
+async function loadSplitSettings() {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEY_SPLIT_SETTINGS);
+    const normalized = normalizeSplitSettings(result[STORAGE_KEY_SPLIT_SETTINGS]);
+    if (!result[STORAGE_KEY_SPLIT_SETTINGS]) {
+      await chrome.storage.local.set({ [STORAGE_KEY_SPLIT_SETTINGS]: normalized });
+    }
+    return normalized;
+  } catch (err) {
+    console.warn('SplitView: load settings failed, use defaults.', err);
+    return deepClone(DEFAULT_SPLIT_SETTINGS);
+  }
+}
+
+async function saveSplitSettings(settings) {
+  const normalized = normalizeSplitSettings(settings);
+  await chrome.storage.local.set({ [STORAGE_KEY_SPLIT_SETTINGS]: normalized });
+  return normalized;
+}
+
+function getLayoutProfile(hostname, settings) {
+  const normalized = normalizeSplitSettings(settings);
+  const matchedDomain = normalized.whitelist.enabled
+    ? matchDomainRule(hostname, normalized.whitelist.domains)
+    : null;
+
+  if (!matchedDomain) {
+    return {
+      widthPct: DEFAULT_FALLBACK_WIDTH_PCT,
+      matchedDomain: null,
+      isWhitelisted: false
+    };
+  }
+
+  const override = normalized.siteOverrides[matchedDomain];
+  const widthPct = override
+    ? clampWidth(
+        override.widthPct,
+        normalized.global.minWidthPct,
+        normalized.global.maxWidthPct
+      )
+    : clampWidth(
+        normalized.global.defaultWidthPct,
+        normalized.global.minWidthPct,
+        normalized.global.maxWidthPct
+      );
+
+  return {
+    widthPct,
+    matchedDomain,
+    isWhitelisted: true
+  };
+}
 
 function initInspector() {
   if (isInspecting) return;
@@ -154,7 +312,10 @@ async function processExtraction(elements) {
     }
     
     const finalContent = extractedParts.join('<br class="splitview-separator"><hr><br>');
-    showSplitView(finalContent);
+    showSplitView(finalContent).catch(err => {
+      console.error('SplitView: show split view failed.', err);
+      showNotification('分屏显示失败，请重试');
+    });
 }
 
 function handleKeyDown(e) {
@@ -341,16 +502,111 @@ let originalHtmlStyle = '';
 let currentMode = 'rich'; // rich or markdown
 let currentContent = '';
 let md = null;
+let splitSettingsCache = deepClone(DEFAULT_SPLIT_SETTINGS);
+let currentLayoutProfile = {
+  widthPct: DEFAULT_FALLBACK_WIDTH_PCT,
+  matchedDomain: null,
+  isWhitelisted: false
+};
 
-function showSplitView(content) {
+function getSettingsElements() {
+  if (!splitPanel) return null;
+  return {
+    panel: splitPanel.querySelector('#sv-settings-panel'),
+    toggleBtn: splitPanel.querySelector('#sv-settings'),
+    hostLabel: splitPanel.querySelector('#sv-settings-host'),
+    whitelistToggle: splitPanel.querySelector('#sv-site-whitelist'),
+    overrideToggle: splitPanel.querySelector('#sv-site-override'),
+    widthRange: splitPanel.querySelector('#sv-width-range'),
+    widthValue: splitPanel.querySelector('#sv-width-value'),
+    saveBtn: splitPanel.querySelector('#sv-settings-save')
+  };
+}
+
+function applyPanelWidth(widthPct) {
+  if (!splitPanel) return;
+  splitPanel.style.setProperty('--sv-panel-width', `${widthPct}vw`);
+}
+
+function syncSettingsPanelValues() {
+  const els = getSettingsElements();
+  if (!els) return;
+
+  const domainKey = getDomainKey(window.location.hostname);
+  const globalCfg = splitSettingsCache.global;
+  const isWhitelisted = Boolean(currentLayoutProfile.isWhitelisted);
+  const hasOverride = Boolean(splitSettingsCache.siteOverrides[domainKey]);
+  const suggestedWidth = hasOverride
+    ? splitSettingsCache.siteOverrides[domainKey].widthPct
+    : splitSettingsCache.global.defaultWidthPct;
+
+  els.hostLabel.textContent = domainKey || normalizeDomain(window.location.hostname) || '-';
+  els.whitelistToggle.checked = isWhitelisted;
+  els.overrideToggle.checked = hasOverride;
+  els.widthRange.min = String(globalCfg.minWidthPct);
+  els.widthRange.max = String(globalCfg.maxWidthPct);
+  els.widthRange.step = String(globalCfg.stepPct);
+  els.widthRange.value = String(clampWidth(suggestedWidth, globalCfg.minWidthPct, globalCfg.maxWidthPct));
+  els.widthValue.textContent = `${els.widthRange.value}%`;
+}
+
+function updateWidthPreview() {
+  const els = getSettingsElements();
+  if (!els) return;
+  els.widthValue.textContent = `${els.widthRange.value}%`;
+}
+
+async function handleSaveSettingsFromPanel() {
+  const els = getSettingsElements();
+  if (!els) return;
+
+  const domainKey = getDomainKey(window.location.hostname);
+  if (!domainKey) {
+    showNotification('当前页面域名不可配置');
+    return;
+  }
+
+  const widthPct = clampWidth(
+    els.widthRange.value,
+    splitSettingsCache.global.minWidthPct,
+    splitSettingsCache.global.maxWidthPct
+  );
+  const next = normalizeSplitSettings(splitSettingsCache);
+  const domains = new Set(next.whitelist.domains);
+
+  if (els.whitelistToggle.checked) {
+    domains.add(domainKey);
+  } else {
+    domains.delete(domainKey);
+  }
+  next.whitelist.domains = Array.from(domains);
+
+  if (els.overrideToggle.checked) {
+    next.siteOverrides[domainKey] = { widthPct };
+  } else {
+    delete next.siteOverrides[domainKey];
+  }
+
+  splitSettingsCache = await saveSplitSettings(next);
+  currentLayoutProfile = getLayoutProfile(window.location.hostname, splitSettingsCache);
+  applyPanelWidth(currentLayoutProfile.widthPct);
+  enableSplitLayout(currentLayoutProfile.widthPct);
+  syncSettingsPanelValues();
+  showNotification('分屏设置已保存');
+}
+
+async function showSplitView(content) {
   currentContent = content;
   
   if (!splitPanel) {
     createSplitPanel();
   }
-  
-  // Activate Split View Layout
-  enableSplitLayout();
+
+  splitSettingsCache = await loadSplitSettings();
+  currentLayoutProfile = getLayoutProfile(window.location.hostname, splitSettingsCache);
+  applyPanelWidth(currentLayoutProfile.widthPct);
+  enableSplitLayout(currentLayoutProfile.widthPct);
+  syncSettingsPanelValues();
   
   // Render Content
   renderContent();
@@ -371,11 +627,29 @@ function createSplitPanel() {
       <div class="sv-controls">
         <button class="sv-btn active" data-mode="rich">富文本</button>
         <button class="sv-btn" data-mode="markdown">Markdown</button>
+        <button class="sv-btn" id="sv-settings">设置</button>
         <button class="sv-btn" id="sv-copy">复制</button>
         <button class="sv-btn" id="sv-copy-source" title="复制 HTML 源码">复制源码</button>
         <button class="sv-btn" id="sv-pdf">PDF</button>
         <button class="sv-btn" id="sv-close">✕</button>
       </div>
+    </div>
+    <div class="sv-settings-panel" id="sv-settings-panel">
+      <div class="sv-settings-line">当前站点：<span id="sv-settings-host">-</span></div>
+      <label class="sv-settings-line">
+        <input type="checkbox" id="sv-site-whitelist">
+        当前站点启用参数化分屏
+      </label>
+      <label class="sv-settings-line">
+        <input type="checkbox" id="sv-site-override">
+        当前站点使用单独宽度
+      </label>
+      <div class="sv-settings-line">
+        <span>分屏宽度</span>
+        <input type="range" id="sv-width-range" min="20" max="60" step="1" value="40">
+        <span id="sv-width-value">40%</span>
+      </div>
+      <button class="sv-btn" id="sv-settings-save">保存设置</button>
     </div>
     <div class="sv-content" id="sv-content-body"></div>
   `;
@@ -384,6 +658,17 @@ function createSplitPanel() {
   
   // Bind Events
   splitPanel.querySelector('#sv-close').addEventListener('click', closeSplitView);
+  splitPanel.querySelector('#sv-settings').addEventListener('click', () => {
+    const panel = splitPanel.querySelector('#sv-settings-panel');
+    panel.classList.toggle('open');
+  });
+  splitPanel.querySelector('#sv-width-range').addEventListener('input', updateWidthPreview);
+  splitPanel.querySelector('#sv-settings-save').addEventListener('click', () => {
+    handleSaveSettingsFromPanel().catch(err => {
+      console.error('SplitView: save settings failed.', err);
+      showNotification('保存失败，请稍后重试');
+    });
+  });
   splitPanel.querySelector('#sv-copy').addEventListener('click', copyContent);
   splitPanel.querySelector('#sv-copy-source').addEventListener('click', copyHtmlSource);
   splitPanel.querySelector('#sv-pdf').addEventListener('click', exportToPDF);
@@ -399,7 +684,7 @@ function createSplitPanel() {
   });
 }
 
-function enableSplitLayout() {
+function enableSplitLayout(widthPct) {
   // Save original styles if not already saved
   if (!document.body.classList.contains('sv-split-active')) {
     originalBodyStyle = document.body.style.cssText;
@@ -408,10 +693,10 @@ function enableSplitLayout() {
     document.body.classList.add('sv-split-active');
     
     // Resize Page - using padding instead of width to be less intrusive
-    document.documentElement.style.overflowX = 'hidden'; 
-    document.body.style.paddingRight = '40vw'; 
+    document.documentElement.style.overflowX = 'hidden';
     document.body.style.boxSizing = 'border-box'; // Ensure padding is calculated correctly
   }
+  document.body.style.paddingRight = `${widthPct}vw`;
 }
 
 function closeSplitView() {

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SplitView 设置</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main class="container">
+    <h1>SplitView 分屏设置</h1>
+    <p class="desc">参数化分屏仅对白名单站点生效，非白名单站点保持默认 40% 分屏宽度。</p>
+
+    <section class="card">
+      <h2>全局默认宽度</h2>
+      <div class="row">
+        <input id="global-width-range" type="range" min="20" max="60" step="1" value="40">
+        <input id="global-width-number" type="number" min="20" max="60" step="1" value="40">
+        <span>%</span>
+        <button id="save-global">保存</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>白名单站点</h2>
+      <div class="row">
+        <input id="whitelist-input" type="text" placeholder="例如：example.com">
+        <button id="add-whitelist">添加</button>
+      </div>
+      <ul id="whitelist-list" class="list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>站点独立宽度</h2>
+      <div class="row">
+        <input id="override-domain" type="text" placeholder="例如：example.com">
+        <input id="override-width" type="number" min="20" max="60" step="1" value="40">
+        <span>%</span>
+        <button id="add-override">添加/更新</button>
+      </div>
+      <ul id="override-list" class="list"></ul>
+    </section>
+
+    <div class="footer">
+      <button id="reset-defaults" class="danger">重置为默认配置</button>
+      <span id="status"></span>
+    </div>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>

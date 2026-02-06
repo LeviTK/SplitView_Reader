@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.1.0] - 2026-02-06
+
+- 新增分屏参数化配置：全局默认宽度（20%~60%，步长 1%）+ 站点独立宽度覆盖。
+- 新增白名单站点策略：仅白名单站点使用参数化分屏，非白名单保持默认 40%。
+- 面板内新增“设置”入口，可快速切换当前站点白名单和宽度覆盖并即时生效。
+- 新增扩展设置页：`options.html`、`options.css`、`options.js`，支持完整配置管理。
+- `manifest.json` 新增 `options_page` 并升级版本到 `1.1.0`。
+
 ## [v1.0.9] - 2026-02-06
 
 - 清理 `content.js` 中已下线批量模式相关遗留注释，降低维护噪音。

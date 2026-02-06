@@ -38,7 +38,7 @@
   position: fixed;
   top: 0;
   right: 0;
-  width: 40vw;
+  width: var(--sv-panel-width, 40vw);
   height: 100vh;
   background: white;
   z-index: 2147483647;
@@ -56,13 +56,14 @@
 }
 
 .sv-header {
-  height: 50px;
+  min-height: 50px;
   border-bottom: 1px solid #eee;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 8px 16px;
   background: #fbfbfb;
+  gap: 12px;
 }
 
 .sv-title {
@@ -73,7 +74,9 @@
 
 .sv-controls {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .sv-btn {
@@ -105,6 +108,41 @@
   font-size: 16px;
   line-height: 1.6;
   color: #333;
+}
+
+.sv-settings-panel {
+  display: none;
+  border-bottom: 1px solid #eee;
+  background: #fafafa;
+  padding: 12px 16px;
+  gap: 10px;
+  flex-direction: column;
+}
+
+.sv-settings-panel.open {
+  display: flex;
+}
+
+.sv-settings-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #333;
+}
+
+.sv-settings-line input[type="range"] {
+  flex: 1;
+}
+
+@media (max-width: 920px) {
+  #splitview-panel {
+    width: min(90vw, 460px);
+  }
+
+  .sv-header {
+    align-items: flex-start;
+  }
 }
 
 /* Markdown Styles */
