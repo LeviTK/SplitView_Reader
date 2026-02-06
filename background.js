@@ -6,6 +6,7 @@
  * 3. 发送 'startSelection' 消息激活页面内的检查器。
  */
 const ACTION_START_SELECTION = 'startSelection';
+const CONTENT_SCRIPT_RUNTIME_VERSION = chrome.runtime.getManifest().version;
 const SUPPORTED_PROTOCOLS = ['http:', 'https:'];
 const RESTRICTED_URL_ERROR_FRAGMENT = 'Cannot access a chrome:// URL';
 
@@ -48,14 +49,22 @@ chrome.action.onClicked.addListener(async (tab) => {
     console.error('Failed to inject CSS:', err);
   }
 
-  // 检查内容脚本是否已注入，避免重复注入
+  // 检查内容脚本是否已注入且版本一致，避免重复注入旧代码
   let isScriptInjected = false;
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: () => !!window.splitViewInitialized
+      func: () => ({
+        initialized: !!window.splitViewInitialized,
+        version: window.splitViewRuntimeVersion || null
+      })
     });
-    if (results && results[0] && results[0].result) {
+    const scriptState = results && results[0] && results[0].result;
+    if (
+      scriptState &&
+      scriptState.initialized &&
+      scriptState.version === CONTENT_SCRIPT_RUNTIME_VERSION
+    ) {
       isScriptInjected = true;
     }
   } catch (e) {
@@ -86,4 +95,3 @@ chrome.action.onClicked.addListener(async (tab) => {
     console.log('Message sending failed (script might be initializing):', err);
   }
 });
-

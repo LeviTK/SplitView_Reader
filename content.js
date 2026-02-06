@@ -13,6 +13,7 @@ let highlightLabel = null;
 let currentHoveredElement = null;
 let lastRealHoveredElement = null;
 const ACTION_START_SELECTION = 'startSelection';
+const CONTENT_SCRIPT_RUNTIME_VERSION = chrome.runtime.getManifest().version;
 const STORAGE_KEY_SPLIT_SETTINGS = 'splitViewSettings';
 const DEFAULT_FALLBACK_WIDTH_PCT = 40;
 const DEFAULT_SPLIT_SETTINGS = {
@@ -298,21 +299,32 @@ async function processExtraction(elements) {
     stopInspector();
     showNotification(`Extracting ${elements.length} item(s)...`);
     
-    const extractedParts = [];
-    
-    for (const el of elements) {
-        await expandContent(el);
-        // Pre-fix styles for display consistency
-        if (currentSiteRule && currentSiteRule.collapseStyleFix) {
-             // apply fix to live element clone temporarily or just rely on extract logic
-             // extractElementContent does cleanNode.
-        }
-        const content = extractElementContent(el);
-        extractedParts.push(content);
+    const extractedItems = [];
+
+    try {
+      for (const [index, el] of elements.entries()) {
+          await expandContent(el);
+          const content = extractElementContent(el);
+          if (isMeaningfulHtml(content)) {
+            extractedItems.push({
+              index: index + 1,
+              html: content
+            });
+          }
+      }
+    } catch (err) {
+      console.error('SplitView: extraction failed.', err);
+      showNotification('提取失败，请重试');
+      return;
     }
-    
-    const finalContent = extractedParts.join('<br class="splitview-separator"><hr><br>');
-    showSplitView(finalContent).catch(err => {
+
+    if (extractedItems.length === 0) {
+      showNotification('未提取到可显示内容');
+      return;
+    }
+
+    const finalContent = buildCardsHtml(extractedItems);
+    showSplitView(finalContent, extractedItems).catch(err => {
       console.error('SplitView: show split view failed.', err);
       showNotification('分屏显示失败，请重试');
     });
@@ -501,6 +513,7 @@ let originalBodyStyle = '';
 let originalHtmlStyle = '';
 let currentMode = 'rich'; // rich or markdown
 let currentContent = '';
+let currentExtractedItems = [];
 let md = null;
 let splitSettingsCache = deepClone(DEFAULT_SPLIT_SETTINGS);
 let currentLayoutProfile = {
@@ -556,6 +569,41 @@ function updateWidthPreview() {
   els.widthValue.textContent = `${els.widthRange.value}%`;
 }
 
+function isMeaningfulHtml(html) {
+  if (!html || typeof html !== 'string') return false;
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+  temp.querySelectorAll('br, hr').forEach(el => el.remove());
+
+  const text = (temp.textContent || '').replace(/\s+/g, '');
+  if (text.length > 0) return true;
+
+  return Boolean(
+    temp.querySelector('img, video, audio, svg, canvas, iframe, table, ul, ol, pre, code')
+  );
+}
+
+function buildCardsHtml(items) {
+  const cards = items.map((item, idx) => `
+    <article class="sv-card" data-sv-index="${idx + 1}">
+      <header class="sv-card-header">第 ${idx + 1} 项</header>
+      <section class="sv-card-body">${item.html}</section>
+    </article>
+  `).join('');
+  return `<div class="sv-cards">${cards}</div>`;
+}
+
+function renderContentSafe() {
+  try {
+    renderContent();
+    return true;
+  } catch (err) {
+    console.error('SplitView: render failed.', err);
+    showNotification('渲染失败，请重试');
+    return false;
+  }
+}
+
 async function handleSaveSettingsFromPanel() {
   const els = getSettingsElements();
   if (!els) return;
@@ -595,8 +643,14 @@ async function handleSaveSettingsFromPanel() {
   showNotification('分屏设置已保存');
 }
 
-async function showSplitView(content) {
+async function showSplitView(content, extractedItems = []) {
+  if (!isMeaningfulHtml(content)) {
+    showNotification('未提取到可显示内容');
+    return;
+  }
+
   currentContent = content;
+  currentExtractedItems = extractedItems;
   
   if (!splitPanel) {
     createSplitPanel();
@@ -609,7 +663,9 @@ async function showSplitView(content) {
   syncSettingsPanelValues();
   
   // Render Content
-  renderContent();
+  if (!renderContentSafe()) {
+    return;
+  }
   
   // Need to force display via timeout to ensure transition works
   setTimeout(() => {
@@ -712,6 +768,9 @@ function closeSplitView() {
 
 function renderContent() {
   const container = document.getElementById('sv-content-body');
+  if (!container) {
+    throw new Error('SplitView content container missing');
+  }
   
   if (currentMode === 'rich') {
     container.innerHTML = currentContent;
@@ -722,8 +781,11 @@ function renderContent() {
     }
     
     if (md) {
-      // HTML -> Markdown conversion
-      const markdown = htmlToMarkdown(currentContent);
+      const markdown = currentExtractedItems.length > 0
+        ? currentExtractedItems
+          .map((item, idx) => `## 第 ${idx + 1} 项\n\n${htmlToMarkdown(item.html)}`)
+          .join('\n\n')
+        : htmlToMarkdown(currentContent);
       container.textContent = markdown; 
       container.classList.add('markdown-mode');
     } else {
@@ -1092,20 +1154,22 @@ function showNotification(message) {
   }, 3000);
 }
 
-// 监听来自后台的消息
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+function handleRuntimeMessage(request) {
   if (request.action === ACTION_START_SELECTION) {
-    // 这里的 startSelection 实际上现在对应的是启动 Inspector
     (async () => {
-        await loadSiteRule(); // Load rules when starting
-        initInspector();
+      await loadSiteRule();
+      initInspector();
     })();
   }
   return true;
-});
+}
 
-// 自动初始化（如果作为普通脚本注入且需要直接运行的话，但在 Action 点击模式下，通常由消息触发）
+if (!window.splitViewMessageListenerBound) {
+  chrome.runtime.onMessage.addListener(handleRuntimeMessage);
+  window.splitViewMessageListenerBound = true;
+}
+
+window.splitViewRuntimeVersion = CONTENT_SCRIPT_RUNTIME_VERSION;
 if (!window.splitViewInitialized) {
   window.splitViewInitialized = true;
-  // initInspector(); // 不需要自动启动，等待 action 点击消息
 }
