@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SplitView Reader",
-  "version": "1.0.0",
+  "version": "1.0.9",
   "description": "Arc-style split panel for extracting and reading web content",
   "permissions": [
     "activeTab",

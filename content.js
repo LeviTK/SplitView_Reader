@@ -14,18 +14,6 @@ let currentHoveredElement = null;
 let lastRealHoveredElement = null;
 const ACTION_START_SELECTION = 'startSelection';
 
-// ---------------------------------------------------------
-// Batch Selection State (Removed)
-// ---------------------------------------------------------
-// let batchSelection = new Set();
-// let batchCandidates = [];
-// let batchModeActive = false;
-// let batchOverlayUpdateHandle = null;
-
-// function updateOverlayPositions() ... REMOVED
-// function bindBatchOverlayUpdates() ... REMOVED
-// function unbindBatchOverlayUpdates() ... REMOVED
-
 function initInspector() {
   if (isInspecting) return;
   isInspecting = true;
@@ -47,7 +35,6 @@ function initInspector() {
 
 function stopInspector() {
   isInspecting = false;
-  // clearBatchOverlays(); REMOVED
   
   document.removeEventListener('mousemove', handleMouseMove, true);
   document.removeEventListener('click', handleClick, true);
@@ -77,13 +64,8 @@ function handleMouseMove(e) {
     currentHoveredElement = element;
     lastRealHoveredElement = element;
     highlightElement(element);
-    // identifyBatchCandidates(element); REMOVED
   }
 }
-
-// function identifyBatchCandidates(target) ... REMOVED
-// function drawBatchOverlays(candidates, activeTarget) ... REMOVED
-// function clearBatchOverlays() ... REMOVED
 
 function handleClick(e) {
   if (!isInspecting) return;
@@ -105,7 +87,6 @@ function handleClick(e) {
   }
 }
 
-// Handle Label Click -> Sibling Extraction
 function handleLabelClick(target) {
     if (!target) return;
     
@@ -176,8 +157,6 @@ async function processExtraction(elements) {
     showSplitView(finalContent);
 }
 
-// function updateBatchVisuals() ... REMOVED
-
 function handleKeyDown(e) {
   if (!isInspecting) return;
   
@@ -186,22 +165,7 @@ function handleKeyDown(e) {
     showNotification('Inspect Mode Cancelled');
   }
   
-  // Enter logic removed
 }
-
-// function confirmBatchSelection() ... REMOVED
-
-// ---------------------------------------------------------
-// Existing Highlight Logic (Modified)
-// ---------------------------------------------------------
-
-// function initInspector() { ... } 
-// function stopInspector() { ... }
-// function createHighlightElements() { ... }
-// function handleMouseMove() { ... }
-// function handleClick() { ... }
-// function handleKeyDown() { ... }
-// All these were duplicated below. Removing the duplicate block.
 
 
 

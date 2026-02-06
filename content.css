@@ -1,7 +1,7 @@
 /**
  * 核心样式表
  * 功能：
- * 1. 定义检查器的高亮框 (#splitview-highlight-box) 和批量选择覆盖层 (.splitview-batch-overlay)。
+ * 1. 定义检查器的高亮框 (#splitview-highlight-box) 与标签。
  * 2. 定义分屏阅读面板 (#splitview-panel) 的布局、动画与工具栏样式。
  * 3. 定义提取内容的排版样式 (Markdown/富文本)。
  */
@@ -32,21 +32,6 @@
   z-index: 2147483647;
   display: none;
   cursor: pointer; /* Clickable feedback */
-}
-
-/* Batch Selection Overlays */
-.splitview-batch-overlay {
-  position: absolute;
-  background: rgba(0, 113, 227, 0.1);
-  border: 1px dashed rgba(0, 113, 227, 0.5);
-  pointer-events: none;
-  z-index: 2147483645;
-  transition: all 0.1s ease;
-}
-
-.splitview-batch-overlay.active {
-  background: rgba(0, 113, 227, 0.3);
-  border: 2px solid #0071e3;
 }
 
 #splitview-panel {

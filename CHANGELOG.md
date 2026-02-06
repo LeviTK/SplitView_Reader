@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.0.9] - 2026-02-06
+
+- 清理 `content.js` 中已下线批量模式相关遗留注释，降低维护噪音。
+- 移除 `content.css` 中未使用的 `.splitview-batch-overlay` 样式及相关说明。
+- 升级扩展清单版本：`manifest.json` `1.0.0 -> 1.0.9`。
+
 ## [v1.0.8] - 2026-02-06
 
 - 针对受保护页面（如 `chrome://`）注入失败新增错误识别与降级处理。
