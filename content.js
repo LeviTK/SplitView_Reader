@@ -305,7 +305,15 @@ async function expandContent(rootElement) {
      // Naive text search on buttons/links
      const candidates = rootElement.querySelectorAll('button, a, [role="button"]');
      for (const el of candidates) {
-         const text = el.innerText || el.textContent;
+         const tagName = el.tagName;
+         const role = (el.getAttribute('role') || '').toLowerCase();
+         const isAnchorWithHref = tagName === 'A' && el.hasAttribute('href');
+         const isButtonLike = tagName === 'BUTTON' || role === 'button';
+
+         // Avoid navigation risks during text-based expansion.
+         if (!isButtonLike || isAnchorWithHref) continue;
+
+         const text = el.innerText || el.textContent || '';
          if (expandText.some(t => text.includes(t))) {
              el.click();
              clicked = true;

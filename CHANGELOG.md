@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.0.3] - 2026-02-06
+
+- 收紧 `expandContent` 文本匹配点击范围。
+- 默认仅允许按钮类节点触发展开，不再点击 `a[href]`，避免页面跳转风险。
+
 ## [v1.0.2] - 2026-02-06
 
 - 修复标签点击目标漂移：新增 `lastRealHoveredElement`。
