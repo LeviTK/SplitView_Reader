@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.0.6] - 2026-02-06
+
+- 消息协议常量化：`background.js` 与 `content.js` 使用统一 `ACTION_START_SELECTION` 常量。
+- 更新 `README.md`，移除失效的批量锁定/Enter/覆盖层描述，改为当前真实交互流程。
+- 同步修正 `content.js` 文件头注释描述。
+
 ## [v1.0.5] - 2026-02-06
 
 - 移除 `manifest.json` 中不必要的 `host_permissions`。

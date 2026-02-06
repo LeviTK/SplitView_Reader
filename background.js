@@ -5,7 +5,7 @@
  * 2. 动态向当前标签页注入 CSS (content.css) 和 JS (lib/markdown-it.min.js, content.js)。
  * 3. 发送 'startSelection' 消息激活页面内的检查器。
  */
-
+const ACTION_START_SELECTION = 'startSelection';
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('SplitView Reader installed');
@@ -53,13 +53,12 @@ chrome.action.onClicked.addListener(async (tab) => {
 
   // 发送启动消息，确保即使脚本已存在也能重新激活
   try {
-    await chrome.tabs.sendMessage(tab.id, { action: 'startSelection' });
+    await chrome.tabs.sendMessage(tab.id, { action: ACTION_START_SELECTION });
   } catch (err) {
     // 忽略错误，可能是脚本刚注入还未准备好，或者已经自动启动
     console.log('Message sending failed (script might be initializing):', err);
   }
 });
-
 
 
 

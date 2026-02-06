@@ -1,8 +1,8 @@
 /**
  * 核心内容脚本 (Content Script)
  * 功能：
- * 1. 实现元素检查器 (Inspector)：悬停高亮、批量选择候选识别。
- * 2. 交互逻辑：点击锁定批量模式、Enter 确认提取、Esc 取消。
+ * 1. 实现元素检查器 (Inspector)：悬停高亮、标签点击触发同级提取确认。
+ * 2. 交互逻辑：点击单项提取，Esc 取消检查。
  * 3. 内容提取：根据 Site Rules 自动展开内容 (expandContent)、清洗 DOM。
  * 4. 分屏阅读器：在页面右侧渲染提取的内容 (富文本/Markdown)。
  * 5. 工具栏功能：复制、复制源码、PDF导出等。
@@ -12,6 +12,7 @@ let highlightBox = null;
 let highlightLabel = null;
 let currentHoveredElement = null;
 let lastRealHoveredElement = null;
+const ACTION_START_SELECTION = 'startSelection';
 
 // ---------------------------------------------------------
 // Batch Selection State (Removed)
@@ -844,7 +845,7 @@ function showNotification(message) {
 
 // 监听来自后台的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'startSelection') {
+  if (request.action === ACTION_START_SELECTION) {
     // 这里的 startSelection 实际上现在对应的是启动 Inspector
     (async () => {
         await loadSiteRule(); // Load rules when starting
