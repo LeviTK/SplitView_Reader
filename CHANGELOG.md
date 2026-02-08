@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.3.0] - 2026-02-09
+
+### 新增
+- 分屏面板从覆盖层改为真正的并排分屏：Shadow Host 作为右侧固定侧边栏，与左侧源页面同层并排，不再浮在页面上方。
+- 新增 `resetSplitLayout()`：统一清理挤压/fixed 调整/隐藏元素/样式注入，供关闭和重入复用。
+
+### 修复
+- 修复检查器激活时无法点击面板 X 按钮关闭：`handleClick` 捕获阶段放行 Shadow Host 区域的点击事件。
+- 修复第二次提取无法覆盖上一轮布局样式：`showSplitView` 在重新显示前先调用 `resetSplitLayout()` 清理旧状态。
+
+### 调整
+- 移除 `#splitview-shadow-root` 全屏中间层，面板直接挂载到 Shadow Root。
+- 面板定位/动画/拖拽 class 从 `splitPanel` 迁移到 `splitShadowHost`（`:host(.open)` / `:host(.sv-dragging)`）。
+- `applyPanelWidth` 改为设置 Host 的 CSS 变量。
+- `closeSplitView` 复用 `resetSplitLayout()`，消除重复代码。
+- `manifest.json` 版本升级到 `1.3.0`。
+
 ## [v1.2.5] - 2026-02-09
 
 ### 修复

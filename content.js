@@ -146,8 +146,12 @@ function handleMouseMove(e) {
 
 function handleClick(e) {
   if (!isInspecting) return;
-  
-  // Allow label click to pass through to label logic
+
+  if (
+    e.target === splitShadowHost ||
+    (splitShadowHost && splitShadowHost.contains(e.target))
+  ) return;
+
   if (e.target === highlightLabel) {
       e.preventDefault();
       e.stopPropagation();
@@ -159,7 +163,6 @@ function handleClick(e) {
   e.stopPropagation();
   
   if (currentHoveredElement) {
-      // Single item extract
       processExtraction([currentHoveredElement]);
   }
 }
@@ -572,31 +575,35 @@ const SPLIT_SHADOW_HOST_ID = 'splitview-shadow-host';
 const SHADOW_PANEL_STYLES = `
   :host {
     all: initial;
-  }
-
-  #splitview-shadow-root {
-    position: fixed;
-    inset: 0;
-    z-index: 2147483647;
-    pointer-events: none;
-  }
-
-  #splitview-panel {
+    display: block;
     position: fixed;
     top: 0;
     right: 0;
     width: var(--sv-panel-width, 40vw);
     height: 100vh;
+    z-index: 2147483646;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+  }
+
+  :host(.open) {
+    transform: translateX(0);
+  }
+
+  :host(.sv-dragging) {
+    transition: none !important;
+  }
+
+  #splitview-panel {
+    width: 100%;
+    height: 100%;
     background: white;
-    z-index: 2147483647;
     box-shadow: -4px 0 16px rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
     border-left: 1px solid #e1e1e1;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    transition: transform 0.3s ease;
-    transform: translateX(100%);
-    pointer-events: auto;
+    box-sizing: border-box;
   }
 
   .sv-resize-handle {
@@ -623,14 +630,6 @@ const SHADOW_PANEL_STYLES = `
   .sv-resize-handle:hover::after,
   .sv-resize-handle.active::after {
     background: #0071e3;
-  }
-
-  #splitview-panel.sv-dragging {
-    transition: none !important;
-  }
-
-  #splitview-panel.open {
-    transform: translateX(0);
   }
 
   .sv-header {
@@ -772,8 +771,8 @@ const SHADOW_PANEL_STYLES = `
   }
 
   @media (max-width: 920px) {
-    #splitview-panel {
-      width: min(90vw, 460px);
+    :host {
+      width: min(90vw, 460px) !important;
     }
 
     .sv-header {
@@ -816,12 +815,6 @@ function ensureSplitPanelShadowRoot() {
     style.setAttribute('data-sv-shadow-style', '1');
     style.textContent = SHADOW_PANEL_STYLES;
     splitShadowRoot.appendChild(style);
-  }
-
-  if (!splitShadowRoot.querySelector('#splitview-shadow-root')) {
-    const mount = document.createElement('div');
-    mount.id = 'splitview-shadow-root';
-    splitShadowRoot.appendChild(mount);
   }
 
   return splitShadowRoot;
@@ -957,9 +950,8 @@ const svFixedSqueezer = (function createFixedSqueezer() {
   }
 
   function getPanelOffsetPx(widthPct) {
-    const panel = splitPanel;
-    if (panel) {
-      const rect = panel.getBoundingClientRect();
+    if (splitShadowHost) {
+      const rect = splitShadowHost.getBoundingClientRect();
       if (rect.width > 0) return Math.round(rect.width);
     }
     return Math.round(window.innerWidth * (widthPct / 100));
@@ -1006,8 +998,8 @@ function getSettingsElements() {
 }
 
 function applyPanelWidth(widthPct) {
-  if (!splitPanel) return;
-  splitPanel.style.setProperty('--sv-panel-width', `${widthPct}vw`);
+  if (!splitShadowHost) return;
+  splitShadowHost.style.setProperty('--sv-panel-width', `${widthPct}vw`);
 }
 
 function syncSettingsPanelValues() {
@@ -1115,6 +1107,10 @@ async function showSplitView(content, extractedItems = []) {
     return;
   }
 
+  if (document.body.classList.contains('sv-split-active')) {
+    resetSplitLayout();
+  }
+
   currentContent = content;
   currentExtractedItems = extractedItems;
   
@@ -1125,22 +1121,34 @@ async function showSplitView(content, extractedItems = []) {
   splitSettingsCache = await loadSplitSettings();
   refreshLayoutFromSettings();
   
-  // Render Content
   if (!renderContentSafe()) {
     return;
   }
   
-  // Need to force display via timeout to ensure transition works
   setTimeout(() => {
-      splitPanel.classList.add('open');
+      splitShadowHost.classList.add('open');
   }, 10);
+}
+
+function resetSplitLayout() {
+  svFixedSqueezer.disable();
+  restoreHideOnSplit();
+  restorePageRoots();
+
+  if (svLayoutStyleEl && svLayoutStyleEl.parentNode) {
+    svLayoutStyleEl.parentNode.removeChild(svLayoutStyleEl);
+    svLayoutStyleEl = null;
+  }
+
+  document.body.classList.remove('sv-split-active');
+  document.body.style.cssText = originalBodyStyle;
+  document.documentElement.style.cssText = originalHtmlStyle;
 }
 
 function createSplitPanel() {
   if (splitPanel) return;
 
   const shadowRoot = ensureSplitPanelShadowRoot();
-  const mount = shadowRoot.querySelector('#splitview-shadow-root') || shadowRoot;
 
   splitPanel = document.createElement('div');
   splitPanel.id = 'splitview-panel';
@@ -1179,7 +1187,7 @@ function createSplitPanel() {
     <div class="sv-content" id="sv-content-body"></div>
   `;
   
-  mount.appendChild(splitPanel);
+  shadowRoot.appendChild(splitPanel);
   
   // Bind Events
   splitPanel.querySelector('#sv-close').addEventListener('click', closeSplitView);
@@ -1226,11 +1234,11 @@ function initResizeHandle() {
     e.preventDefault();
     dragging = true;
     startX = e.clientX;
-    startWidthPx = splitPanel.getBoundingClientRect().width;
+    startWidthPx = splitShadowHost.getBoundingClientRect().width;
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'col-resize';
     handle.classList.add('active');
-    splitPanel.classList.add('sv-dragging');
+    splitShadowHost.classList.add('sv-dragging');
   });
 
   document.addEventListener('mousemove', (e) => {
@@ -1251,7 +1259,7 @@ function initResizeHandle() {
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
     handle.classList.remove('active');
-    splitPanel.classList.remove('sv-dragging');
+    splitShadowHost.classList.remove('sv-dragging');
   });
 }
 
@@ -1379,22 +1387,11 @@ function enableSplitLayout(widthPct) {
 }
 
 function closeSplitView() {
-  svFixedSqueezer.disable();
-  restoreHideOnSplit();
-  restorePageRoots();
+  resetSplitLayout();
 
-  if (svLayoutStyleEl && svLayoutStyleEl.parentNode) {
-    svLayoutStyleEl.parentNode.removeChild(svLayoutStyleEl);
-    svLayoutStyleEl = null;
+  if (splitShadowHost) {
+    splitShadowHost.classList.remove('open');
   }
-
-  if (splitPanel) {
-    splitPanel.classList.remove('open');
-  }
-
-  document.body.classList.remove('sv-split-active');
-  document.body.style.cssText = originalBodyStyle;
-  document.documentElement.style.cssText = originalHtmlStyle;
 }
 
 function renderContent() {
