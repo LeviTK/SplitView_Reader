@@ -133,6 +133,7 @@ function handleMouseMove(e) {
     element === highlightBox ||
     element === highlightLabel ||
     element.id === 'splitview-highlight-label' ||
+    element.id === 'splitview-shadow-host' ||
     element.closest('#splitview-panel')
   ) return;
   
@@ -468,12 +469,216 @@ function extractElementContent(element) {
 }
 
 let splitPanel = null;
+let splitShadowHost = null;
+let splitShadowRoot = null;
 let originalBodyStyle = '';
 let originalHtmlStyle = '';
 let currentMode = 'rich'; // rich or markdown
 let currentContent = '';
 let currentExtractedItems = [];
 let md = null;
+const SPLIT_SHADOW_HOST_ID = 'splitview-shadow-host';
+const SHADOW_PANEL_STYLES = `
+  :host {
+    all: initial;
+  }
+
+  #splitview-shadow-root {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    pointer-events: none;
+  }
+
+  #splitview-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: var(--sv-panel-width, 40vw);
+    height: 100vh;
+    background: white;
+    z-index: 2147483647;
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid #e1e1e1;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    transition: transform 0.3s ease;
+    transform: translateX(100%);
+    pointer-events: auto;
+  }
+
+  .sv-resize-handle {
+    position: absolute;
+    top: 0;
+    left: -4px;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 1;
+  }
+
+  .sv-resize-handle::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 3px;
+    width: 2px;
+    height: 100%;
+    background: transparent;
+    transition: background 0.2s;
+  }
+
+  .sv-resize-handle:hover::after,
+  .sv-resize-handle.active::after {
+    background: #0071e3;
+  }
+
+  #splitview-panel.sv-dragging {
+    transition: none !important;
+  }
+
+  #splitview-panel.open {
+    transform: translateX(0);
+  }
+
+  .sv-header {
+    min-height: 50px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: #fbfbfb;
+    gap: 12px;
+  }
+
+  .sv-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #333;
+  }
+
+  .sv-controls {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .sv-btn {
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #555;
+    transition: all 0.2s;
+  }
+
+  .sv-btn:hover {
+    background: #f5f5f5;
+    color: #000;
+  }
+
+  .sv-btn.active {
+    background: #0071e3;
+    color: white;
+    border-color: #0071e3;
+  }
+
+  .sv-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #333;
+    background: #f6f8fb;
+  }
+
+  .sv-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .sv-card {
+    overflow: hidden;
+  }
+
+  .sv-card-header {
+    display: none;
+  }
+
+  .sv-card-body {
+    padding: 0;
+  }
+
+  .sv-settings-panel {
+    display: none;
+    border-bottom: 1px solid #eee;
+    background: #fafafa;
+    padding: 12px 16px;
+    gap: 10px;
+    flex-direction: column;
+  }
+
+  .sv-settings-panel.open {
+    display: flex;
+  }
+
+  .sv-settings-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: #333;
+  }
+
+  .sv-settings-line input[type="range"] {
+    flex: 1;
+  }
+
+  .sv-content.markdown-mode {
+    font-family: 'SF Mono', Monaco, Menlo, Consolas, monospace;
+    white-space: pre-wrap;
+    font-size: 14px;
+    background: #f9f9f9;
+  }
+
+  .sv-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 10px 0;
+  }
+
+  .sv-content blockquote {
+    border-left: 4px solid #0071e3;
+    margin: 0;
+    padding-left: 16px;
+    color: #666;
+  }
+
+  .sv-content pre {
+    background: #f5f5f7;
+    padding: 12px;
+    border-radius: 8px;
+    overflow-x: auto;
+  }
+
+  @media (max-width: 920px) {
+    #splitview-panel {
+      width: min(90vw, 460px);
+    }
+
+    .sv-header {
+      align-items: flex-start;
+    }
+  }
+`;
 let splitSettingsCache = deepClone(DEFAULT_SPLIT_SETTINGS);
 let currentLayoutProfile = {
   widthPct: DEFAULT_FALLBACK_WIDTH_PCT,
@@ -481,8 +686,48 @@ let currentLayoutProfile = {
   isWhitelisted: false
 };
 
+function getPanelElementById(id) {
+  if (!splitPanel) return null;
+  return splitPanel.querySelector(`#${id}`);
+}
+
+function getPanelContentElement() {
+  return getPanelElementById('sv-content-body');
+}
+
+function ensureSplitPanelShadowRoot() {
+  if (splitShadowRoot && splitShadowHost && splitShadowHost.isConnected) {
+    return splitShadowRoot;
+  }
+
+  splitShadowHost = document.getElementById(SPLIT_SHADOW_HOST_ID);
+  if (!splitShadowHost) {
+    splitShadowHost = document.createElement('div');
+    splitShadowHost.id = SPLIT_SHADOW_HOST_ID;
+    document.body.appendChild(splitShadowHost);
+  }
+
+  splitShadowRoot = splitShadowHost.shadowRoot || splitShadowHost.attachShadow({ mode: 'open' });
+
+  if (!splitShadowRoot.querySelector('style[data-sv-shadow-style]')) {
+    const style = document.createElement('style');
+    style.setAttribute('data-sv-shadow-style', '1');
+    style.textContent = SHADOW_PANEL_STYLES;
+    splitShadowRoot.appendChild(style);
+  }
+
+  if (!splitShadowRoot.querySelector('#splitview-shadow-root')) {
+    const mount = document.createElement('div');
+    mount.id = 'splitview-shadow-root';
+    splitShadowRoot.appendChild(mount);
+  }
+
+  return splitShadowRoot;
+}
+
 const svFixedSqueezer = (function createFixedSqueezer() {
   const SV_IDS = [
+    SPLIT_SHADOW_HOST_ID,
     'splitview-panel',
     'splitview-highlight-box',
     'splitview-highlight-label',
@@ -610,7 +855,7 @@ const svFixedSqueezer = (function createFixedSqueezer() {
   }
 
   function getPanelOffsetPx(widthPct) {
-    const panel = document.getElementById('splitview-panel');
+    const panel = splitPanel;
     if (panel) {
       const rect = panel.getBoundingClientRect();
       if (rect.width > 0) return Math.round(rect.width);
@@ -790,6 +1035,11 @@ async function showSplitView(content, extractedItems = []) {
 }
 
 function createSplitPanel() {
+  if (splitPanel) return;
+
+  const shadowRoot = ensureSplitPanelShadowRoot();
+  const mount = shadowRoot.querySelector('#splitview-shadow-root') || shadowRoot;
+
   splitPanel = document.createElement('div');
   splitPanel.id = 'splitview-panel';
   
@@ -827,7 +1077,7 @@ function createSplitPanel() {
     <div class="sv-content" id="sv-content-body"></div>
   `;
   
-  document.body.appendChild(splitPanel);
+  mount.appendChild(splitPanel);
   
   // Bind Events
   splitPanel.querySelector('#sv-close').addEventListener('click', closeSplitView);
@@ -916,6 +1166,7 @@ function ensureLayoutStyle() {
 }
 
 const SV_SKIP_IDS = new Set([
+  SPLIT_SHADOW_HOST_ID,
   'splitview-panel',
   'splitview-highlight-box',
   'splitview-highlight-label',
@@ -1045,7 +1296,7 @@ function closeSplitView() {
 }
 
 function renderContent() {
-  const container = document.getElementById('sv-content-body');
+  const container = getPanelContentElement();
   if (!container) {
     throw new Error('SplitView content container missing');
   }
@@ -1073,8 +1324,8 @@ function renderContent() {
 }
 
 function copyContent() {
-  const btn = document.getElementById('sv-copy');
-  const container = document.getElementById('sv-content-body');
+  const btn = getPanelElementById('sv-copy');
+  const container = getPanelContentElement();
   if (!btn || !container) {
     showNotification('无可复制内容');
     return;
@@ -1084,10 +1335,7 @@ function copyContent() {
     const original = btn.textContent;
     btn.textContent = '已复制';
     setTimeout(() => {
-        const latestBtn = document.getElementById('sv-copy');
-        if (latestBtn) {
-            latestBtn.textContent = original;
-        }
+        if (btn.isConnected) btn.textContent = original;
     }, 1500);
   };
 
@@ -1097,10 +1345,7 @@ function copyContent() {
     const original = btn.textContent;
     btn.textContent = '失败';
     setTimeout(() => {
-      const latestBtn = document.getElementById('sv-copy');
-      if (latestBtn) {
-        latestBtn.textContent = original;
-      }
+      if (btn.isConnected) btn.textContent = original;
     }, 1500);
   };
 
@@ -1182,7 +1427,7 @@ function copyContent() {
 }
 
 function copyHtmlSource() {
-  const container = document.getElementById('sv-content-body');
+  const container = getPanelContentElement();
   if (!container) {
     showNotification('无可复制内容');
     return;
@@ -1250,7 +1495,7 @@ function copyHtmlSource() {
   // Actually, for EPUB, having a clean HTML string is key. 
   // Let's just output the clone's HTML.
   
-  const btn = document.getElementById('sv-copy-source');
+  const btn = getPanelElementById('sv-copy-source');
   if (!btn) {
     showNotification('复制失败：按钮不存在');
     return;
@@ -1260,9 +1505,7 @@ function copyHtmlSource() {
   navigator.clipboard.writeText(html).then(() => {
     btn.textContent = '已复制';
     setTimeout(() => {
-        if (document.getElementById('sv-copy-source')) {
-            document.getElementById('sv-copy-source').textContent = original;
-        }
+        if (btn.isConnected) btn.textContent = original;
     }, 1500);
   }).catch(err => {
     console.error('Copy source failed:', err);
@@ -1273,7 +1516,7 @@ function copyHtmlSource() {
 }
 
 function exportToPDF() {
-  const container = document.getElementById('sv-content-body');
+  const container = getPanelContentElement();
   if (!container) {
     showNotification('无可导出内容');
     return;
