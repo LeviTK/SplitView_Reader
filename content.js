@@ -428,6 +428,39 @@ async function loadSiteRule() {
 }
 
 // Helper to expand content based on rules
+function isNavigationRiskNode(el) {
+  if (!(el instanceof Element)) return true;
+
+  // Avoid any element that is itself a link or sits inside a real link.
+  if ((el.tagName === 'A' && el.hasAttribute('href')) || el.closest('a[href]')) {
+    return true;
+  }
+
+  // Avoid form submit side effects.
+  if (el.tagName === 'INPUT') {
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    if (type === 'submit' || type === 'image') return true;
+  }
+  if (el.tagName === 'BUTTON') {
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    if (type === 'submit' && el.closest('form')) return true;
+  }
+
+  return false;
+}
+
+function isSafeExpandableElement(el) {
+  if (!(el instanceof HTMLElement)) return false;
+  if (isNavigationRiskNode(el)) return false;
+
+  const role = (el.getAttribute('role') || '').toLowerCase();
+  const isButtonLike = el.tagName === 'BUTTON' || role === 'button';
+  if (isButtonLike) return true;
+
+  // Allow non-link nodes as a fallback for site-specific selectors.
+  return el.tagName !== 'A';
+}
+
 async function expandContent(rootElement) {
   if (!currentSiteRule) return;
   
@@ -440,6 +473,10 @@ async function expandContent(rootElement) {
       // Search within the root element first
       const buttons = rootElement.querySelectorAll(selector);
       for (const btn of buttons) {
+        if (!isSafeExpandableElement(btn)) {
+          console.log('SplitView: Skipped unsafe expand target (selector)', selector, btn);
+          continue;
+        }
         btn.click();
         clicked = true;
         console.log('SplitView: Clicked expand button (selector)', selector);
@@ -454,13 +491,7 @@ async function expandContent(rootElement) {
      // Naive text search on buttons/links
      const candidates = rootElement.querySelectorAll('button, a, [role="button"]');
      for (const el of candidates) {
-         const tagName = el.tagName;
-         const role = (el.getAttribute('role') || '').toLowerCase();
-         const isAnchorWithHref = tagName === 'A' && el.hasAttribute('href');
-         const isButtonLike = tagName === 'BUTTON' || role === 'button';
-
-         // Avoid navigation risks during text-based expansion.
-         if (!isButtonLike || isAnchorWithHref) continue;
+         if (!isSafeExpandableElement(el)) continue;
 
          const text = el.innerText || el.textContent || '';
          if (expandText.some(t => text.includes(t))) {

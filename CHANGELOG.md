@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.2.1] - 2026-02-08
+
+### 新增
+- 展开点击安全守卫：新增 `isNavigationRiskNode` 与 `isSafeExpandableElement`，统一评估展开目标是否可安全点击。
+
+### 修复
+- 修复 `expandSelectors` 路径直接点击导致的风险：匹配元素不再无条件 `click()`，改为先通过安全校验后再执行。
+- `expandText` 路径复用同一套安全校验逻辑，避免两条分支判断标准不一致。
+
+### 调整
+- `manifest.json` 版本升级到 `1.2.1`。
+
 ## [v1.2.0] - 2026-02-06
 
 ### 新增
