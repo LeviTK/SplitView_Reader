@@ -6,6 +6,19 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.2.5] - 2026-02-09
+
+### 修复
+- 修复 Shadow DOM 内提取内容丢失页面原始样式的问题：`extractElementContent` 提取时将关键计算样式内联到克隆节点，确保进入 Shadow DOM 后保留原始外观。
+- 修复 Twitter/X 推文图片无法正常显示：保留 `position: absolute`（仅降级 `fixed`），补充 `inset` 属性捕获，移除对 img/video 的强制 `height: auto` 覆盖，恢复 padding-bottom 纵横比布局。
+
+### 调整
+- 内联样式白名单大幅扩充：新增 flex 三件套（`flex-grow`/`flex-shrink`/`flex-basis`）、`width`/`height`、`position`/`inset`、`object-fit`/`filter`/`transform` 等属性。
+- 样式过滤从全局黑名单改为分属性跳过（`SKIP_FOR_PROP`），避免 `none`/`0px`/`normal` 等有意义值被误过滤。
+- Shadow DOM 归一化规则收敛：`max-width: 100%` 仅约束直接子元素，移除 SVG 强制 `height: auto`，移除基于属性选择器的 position 覆盖。
+- 提取返回值由 `innerHTML` 改为 `outerHTML`，保留根元素及其内联样式。
+- `manifest.json` 版本升级到 `1.2.5`。
+
 ## [v1.2.4] - 2026-02-08
 
 ### 新增

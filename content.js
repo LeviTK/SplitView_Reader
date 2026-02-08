@@ -465,7 +465,98 @@ function cleanNode(node) {
 function extractElementContent(element) {
   const clone = element.cloneNode(true);
   cleanNode(clone);
-  return clone.innerHTML;
+
+  const INLINE_WHITELIST = [
+    'font-family', 'font-size', 'font-weight', 'font-style', 'color',
+    'background-color', 'background-image', 'background',
+    'line-height', 'letter-spacing', 'text-align', 'text-decoration',
+    'text-indent', 'text-transform', 'white-space', 'word-break', 'word-spacing',
+    'overflow-wrap',
+    'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'border', 'border-top', 'border-right', 'border-bottom', 'border-left',
+    'border-radius', 'border-color', 'border-style', 'border-width',
+    'display', 'flex-direction', 'flex-wrap', 'align-items', 'justify-content', 'gap',
+    'flex-grow', 'flex-shrink', 'flex-basis',
+    'align-self', 'order',
+    'grid-template-columns', 'grid-template-rows', 'grid-gap',
+    'list-style', 'list-style-type', 'list-style-position',
+    'width', 'max-width', 'min-width', 'height', 'max-height', 'min-height',
+    'overflow', 'overflow-x', 'overflow-y',
+    'box-sizing', 'vertical-align', 'opacity',
+    'position', 'inset', 'top', 'right', 'bottom', 'left', 'z-index',
+    'float', 'clear',
+    'object-fit', 'object-position', 'aspect-ratio',
+    'visibility', 'clip-path',
+    'filter',
+    'transform',
+    '-webkit-line-clamp'
+  ];
+
+  const ALWAYS_SKIP = new Set([
+    'auto', 'initial', 'inherit', 'unset'
+  ]);
+
+  const SKIP_FOR_PROP = {
+    'background-color': new Set(['transparent', 'rgba(0, 0, 0, 0)']),
+    'background-image': new Set(['none']),
+    'background': new Set(['transparent', 'rgba(0, 0, 0, 0)']),
+    'text-indent': new Set(['0px']),
+    'letter-spacing': new Set(['normal']),
+    'word-spacing': new Set(['0px']),
+    'opacity': new Set(['1']),
+    'visibility': new Set(['visible']),
+    'z-index': new Set(['auto']),
+    'order': new Set(['0']),
+    'float': new Set(['none']),
+    'clear': new Set(['none']),
+    'clip-path': new Set(['none']),
+    'filter': new Set(['none']),
+    'transform': new Set(['none']),
+    'flex-grow': new Set(['0']),
+    'flex-shrink': new Set(['1']),
+    'flex-basis': new Set(['auto']),
+    'align-self': new Set(['auto']),
+    'object-fit': new Set(['fill']),
+    'aspect-ratio': new Set(['auto']),
+    '-webkit-line-clamp': new Set(['none']),
+    'overflow-wrap': new Set(['normal']),
+  };
+
+  const originals = element.querySelectorAll('*');
+  const clones = clone.querySelectorAll('*');
+
+  const inlineStyles = (origEl, cloneEl) => {
+    const cs = window.getComputedStyle(origEl);
+    let styleStr = '';
+    for (const prop of INLINE_WHITELIST) {
+      const val = cs.getPropertyValue(prop);
+      if (!val) continue;
+      if (ALWAYS_SKIP.has(val)) continue;
+
+      const perProp = SKIP_FOR_PROP[prop];
+      if (perProp && perProp.has(val)) continue;
+
+      if (prop === 'position' && val === 'fixed') {
+        styleStr += 'position:relative;';
+        continue;
+      }
+
+      styleStr += `${prop}:${val};`;
+    }
+    if (styleStr) {
+      const existing = cloneEl.getAttribute('style') || '';
+      cloneEl.setAttribute('style', existing + styleStr);
+    }
+  };
+
+  inlineStyles(element, clone);
+
+  for (let i = 0; i < originals.length && i < clones.length; i++) {
+    inlineStyles(originals[i], clones[i]);
+  }
+
+  return clone.outerHTML;
 }
 
 let splitPanel = null;
@@ -614,6 +705,17 @@ const SHADOW_PANEL_STYLES = `
 
   .sv-card-body {
     padding: 0;
+    overflow-x: hidden;
+    word-break: break-word;
+  }
+
+  .sv-card-body > * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .sv-card-body a {
+    color: #0071e3;
   }
 
   .sv-settings-panel {
