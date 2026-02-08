@@ -148,25 +148,15 @@
 }
 
 .sv-card {
-  background: #fff;
-  border: 1px solid #dde5f1;
-  border-radius: 12px;
-  box-shadow: 0 4px 14px rgba(16, 24, 40, 0.06);
   overflow: hidden;
 }
 
 .sv-card-header {
-  padding: 10px 14px;
-  border-bottom: 1px solid #edf2f8;
-  font-size: 12px;
-  font-weight: 600;
-  color: #43506a;
-  background: linear-gradient(180deg, #f9fbff, #f2f6fd);
+  display: none;
 }
 
 .sv-card-body {
-  padding: 14px;
-  background: #fff;
+  padding: 0;
 }
 
 .sv-settings-panel {
