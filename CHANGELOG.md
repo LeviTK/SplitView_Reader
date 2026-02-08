@@ -6,6 +6,19 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.2.4] - 2026-02-08
+
+### 新增
+- 分屏面板迁移到 Shadow DOM：新增 Shadow Host/Root 挂载与面板内部样式隔离机制。
+
+### 修复
+- 修复宿主页面样式污染分屏面板的问题：面板样式不再依赖页面全局 CSS，复杂站点下按钮、排版与布局更稳定。
+
+### 调整
+- `content.css` 收敛为页面级样式（高亮框/标签/通知），面板相关样式迁入内容脚本 Shadow 样式。
+- 面板内部元素查询改为基于 `splitPanel` 的局部查询，适配 Shadow DOM 渲染上下文。
+- `manifest.json` 版本升级到 `1.2.4`。
+
 ## [v1.2.3] - 2026-02-08
 
 ### 新增
