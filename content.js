@@ -21,6 +21,7 @@ if (!SplitViewSettings) {
 }
 
 const {
+  STORAGE_KEY_SPLIT_SETTINGS,
   DEFAULT_SPLIT_SETTINGS,
   deepClone,
   clampWidth,
@@ -77,6 +78,16 @@ function getLayoutProfile(hostname, settings) {
     matchedDomain,
     isWhitelisted: true
   };
+}
+
+function refreshLayoutFromSettings() {
+  currentLayoutProfile = getLayoutProfile(window.location.hostname, splitSettingsCache);
+  applyPanelWidth(currentLayoutProfile.widthPct);
+  syncSettingsPanelValues();
+
+  if (document.body.classList.contains('sv-split-active')) {
+    enableSplitLayout(currentLayoutProfile.widthPct);
+  }
 }
 
 function initInspector() {
@@ -747,10 +758,7 @@ async function handleSaveSettingsFromPanel() {
   }
 
   splitSettingsCache = await saveSplitSettings(next);
-  currentLayoutProfile = getLayoutProfile(window.location.hostname, splitSettingsCache);
-  applyPanelWidth(currentLayoutProfile.widthPct);
-  enableSplitLayout(currentLayoutProfile.widthPct);
-  syncSettingsPanelValues();
+  refreshLayoutFromSettings();
   showNotification('分屏设置已保存');
 }
 
@@ -768,10 +776,7 @@ async function showSplitView(content, extractedItems = []) {
   }
 
   splitSettingsCache = await loadSplitSettings();
-  currentLayoutProfile = getLayoutProfile(window.location.hostname, splitSettingsCache);
-  applyPanelWidth(currentLayoutProfile.widthPct);
-  enableSplitLayout(currentLayoutProfile.widthPct);
-  syncSettingsPanelValues();
+  refreshLayoutFromSettings();
   
   // Render Content
   if (!renderContentSafe()) {
@@ -1437,10 +1442,30 @@ function handleRuntimeMessage(request) {
   return true;
 }
 
+function handleStorageChange(changes, areaName) {
+  if (areaName !== 'local') return;
+  const settingsChange = changes[STORAGE_KEY_SPLIT_SETTINGS];
+  if (!settingsChange) return;
+
+  const nextSettings = normalizeSplitSettings(settingsChange.newValue);
+  if (JSON.stringify(nextSettings) === JSON.stringify(splitSettingsCache)) {
+    return;
+  }
+
+  splitSettingsCache = nextSettings;
+  refreshLayoutFromSettings();
+}
+
 if (!window.splitViewMessageListenerBound) {
   chrome.runtime.onMessage.addListener(handleRuntimeMessage);
   window.splitViewMessageListenerBound = true;
 }
+
+if (window.splitViewStorageChangeHandler) {
+  chrome.storage.onChanged.removeListener(window.splitViewStorageChangeHandler);
+}
+window.splitViewStorageChangeHandler = handleStorageChange;
+chrome.storage.onChanged.addListener(window.splitViewStorageChangeHandler);
 
 window.splitViewRuntimeVersion = CONTENT_SCRIPT_RUNTIME_VERSION;
 if (!window.splitViewInitialized) {

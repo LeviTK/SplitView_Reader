@@ -6,6 +6,19 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.2.3] - 2026-02-08
+
+### 新增
+- 增加 `chrome.storage.onChanged` 监听：当 `splitViewSettings` 在其他上下文变更时，内容脚本可实时同步配置。
+- 新增 `refreshLayoutFromSettings()`：统一执行“根据最新设置刷新分屏宽度、布局和设置面板”的流程。
+
+### 修复
+- 修复已打开页面设置不同步问题：Options 页面修改白名单、站点宽度或全局宽度后，当前页面分屏布局可即时生效，无需重开检查器。
+
+### 调整
+- 将保存设置与首次展示分屏的刷新逻辑统一为同一入口，减少重复分支。
+- `manifest.json` 版本升级到 `1.2.3`。
+
 ## [v1.2.2] - 2026-02-08
 
 ### 新增
