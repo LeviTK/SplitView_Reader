@@ -1,95 +1,24 @@
-const STORAGE_KEY_SPLIT_SETTINGS = 'splitViewSettings';
-const DEFAULT_SPLIT_SETTINGS = {
-  version: 1,
-  global: {
-    defaultWidthPct: 40,
-    minWidthPct: 20,
-    maxWidthPct: 60,
-    stepPct: 1
-  },
-  whitelist: {
-    enabled: true,
-    domains: []
-  },
-  siteOverrides: {}
-};
-
-function deepClone(obj) {
-  return JSON.parse(JSON.stringify(obj));
+const SplitViewSettings = globalThis.SplitViewSettings;
+if (!SplitViewSettings) {
+  throw new Error('SplitView settings module missing. Ensure split_settings.js is loaded first.');
 }
 
-function normalizeDomain(input) {
-  if (!input) return '';
-  let domain = String(input).trim().toLowerCase();
-  domain = domain.replace(/^https?:\/\//, '');
-  domain = domain.split('/')[0];
-  domain = domain.replace(/:\d+$/, '');
-  domain = domain.replace(/^www\./, '');
-  domain = domain.replace(/^\.+|\.+$/g, '');
-  return domain;
-}
-
-function isValidDomain(domain) {
-  return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(domain);
-}
-
-function clampWidth(value, min, max) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return min;
-  return Math.max(min, Math.min(max, Math.round(num)));
-}
-
-function normalizeSettings(raw) {
-  const merged = deepClone(DEFAULT_SPLIT_SETTINGS);
-  if (!raw || typeof raw !== 'object') return merged;
-
-  if (raw.version) merged.version = raw.version;
-  if (raw.global && typeof raw.global === 'object') {
-    merged.global.minWidthPct = clampWidth(raw.global.minWidthPct, 10, 90);
-    merged.global.maxWidthPct = clampWidth(raw.global.maxWidthPct, merged.global.minWidthPct, 90);
-    merged.global.defaultWidthPct = clampWidth(
-      raw.global.defaultWidthPct,
-      merged.global.minWidthPct,
-      merged.global.maxWidthPct
-    );
-    merged.global.stepPct = clampWidth(raw.global.stepPct, 1, 10);
-  }
-
-  if (raw.whitelist && typeof raw.whitelist === 'object') {
-    merged.whitelist.enabled = raw.whitelist.enabled !== false;
-    if (Array.isArray(raw.whitelist.domains)) {
-      merged.whitelist.domains = Array.from(new Set(raw.whitelist.domains.map(normalizeDomain).filter(Boolean)));
-    }
-  }
-
-  if (raw.siteOverrides && typeof raw.siteOverrides === 'object') {
-    const overrides = {};
-    for (const [domainRaw, val] of Object.entries(raw.siteOverrides)) {
-      const domain = normalizeDomain(domainRaw);
-      if (!domain || !val || typeof val !== 'object') continue;
-      overrides[domain] = {
-        widthPct: clampWidth(val.widthPct, merged.global.minWidthPct, merged.global.maxWidthPct)
-      };
-    }
-    merged.siteOverrides = overrides;
-  }
-
-  return merged;
-}
+const {
+  DEFAULT_SPLIT_SETTINGS,
+  deepClone,
+  normalizeDomain,
+  isValidDomain,
+  clampWidth,
+  loadSplitSettings: loadSettingsFromStorage,
+  saveSplitSettings: saveSettingsToStorage
+} = SplitViewSettings;
 
 async function loadSettings() {
-  const result = await chrome.storage.local.get(STORAGE_KEY_SPLIT_SETTINGS);
-  const normalized = normalizeSettings(result[STORAGE_KEY_SPLIT_SETTINGS]);
-  if (!result[STORAGE_KEY_SPLIT_SETTINGS]) {
-    await chrome.storage.local.set({ [STORAGE_KEY_SPLIT_SETTINGS]: normalized });
-  }
-  return normalized;
+  return loadSettingsFromStorage(chrome.storage.local);
 }
 
 async function saveSettings(settings) {
-  const normalized = normalizeSettings(settings);
-  await chrome.storage.local.set({ [STORAGE_KEY_SPLIT_SETTINGS]: normalized });
-  return normalized;
+  return saveSettingsToStorage(chrome.storage.local, settings);
 }
 
 function setStatus(message, isError = false) {

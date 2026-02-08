@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 
 - 待补充。
 
+## [v1.2.2] - 2026-02-08
+
+### 新增
+- 新增共享设置模块 `split_settings.js`：集中提供 `splitViewSettings` 的 schema、归一化、域名工具、storage 读写封装。
+- 新增设置迁移入口（schema version `2`），为后续配置结构演进提供统一迁移通道。
+
+### 修复
+- 修复多上下文配置契约漂移：`content.js` 与 `options.js` 不再各自维护默认值与归一化逻辑，统一复用共享模块。
+- 统一全局宽度归一化顺序（`min -> max -> default`），消除此前两处实现不一致问题。
+
+### 调整
+- 动态注入顺序调整：`background.js` 注入内容脚本时先注入 `split_settings.js`，再注入业务脚本。
+- `options.html` 调整脚本加载顺序：先加载 `split_settings.js` 再加载 `options.js`。
+- `manifest.json` 版本升级到 `1.2.2`。
+
 ## [v1.2.1] - 2026-02-08
 
 ### 新增

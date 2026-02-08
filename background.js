@@ -2,7 +2,7 @@
  * 后台服务脚本 (Service Worker)
  * 功能：
  * 1. 监听插件图标点击事件 (chrome.action.onClicked)。
- * 2. 动态向当前标签页注入 CSS (content.css) 和 JS (lib/markdown-it.min.js, content.js)。
+ * 2. 动态向当前标签页注入 CSS (content.css) 和 JS (split_settings.js, lib/markdown-it.min.js, content.js)。
  * 3. 发送 'startSelection' 消息激活页面内的检查器。
  */
 const ACTION_START_SELECTION = 'startSelection';
@@ -76,7 +76,7 @@ chrome.action.onClicked.addListener(async (tab) => {
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        files: ['lib/markdown-it.min.js', 'content.js']
+        files: ['split_settings.js', 'lib/markdown-it.min.js', 'content.js']
       });
     } catch (err) {
       if (isRestrictedUrlInjectionError(err)) {
